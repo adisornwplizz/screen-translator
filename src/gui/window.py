@@ -599,11 +599,11 @@ class Window(QMainWindow):
                             self.detected_text.verticalScrollBar().maximum()
                         )
                         
-                        self.last_detected_text = text
-                        
                         # แปลอัตโนมัติเสมอ (เปิดใช้งานตลอด)
-                        if self.auto_translate and text != self.last_detected_text:
+                        if self.auto_translate:
                             self.translate_text(text)
+                        
+                        self.last_detected_text = text
                 
                 self.status_label.setText("สถานะ: พร้อมใช้งาน (แปลอัตโนมัติ English → Thai)")
             else:
