@@ -39,10 +39,17 @@ class DemoWindow(QMainWindow):
 • แสดงข้อมูลขนาดแบบ real-time
 • จำกัดขนาดขั้นต่ำ (50x50 pixels)
 
+🆕 ฟีเจอร์ที่เพิ่มใหม่:
+• 🖱️ Click-Through: คลิกนอกกรอบจะผ่านไป app ข้างล่าง
+• 👁️ Toggle Visibility: กด V เพื่อซ่อน/แสดงกรอบ
+• ⌨️ Keyboard Shortcuts: V หรือ Ctrl+V
+
 🖱️ วิธีใช้:
 • คลิกปุ่มด้านล่างเพื่อแสดงกรอบเลือกพื้นที่
 • ลากตรงกลางเพื่อย้ายตำแหน่ง
 • ลากมุมหรือขอบเพื่อปรับขนาด
+• กด V เพื่อซ่อน/แสดงกรอบ
+• คลิกนอกกรอบเพื่อทดสอบ click-through
 • กด ESC เพื่อปิดกรอบ
         """)
         info_label.setWordWrap(True)
@@ -67,21 +74,63 @@ class DemoWindow(QMainWindow):
         """)
         layout.addWidget(self.show_button)
         
+        # ปุ่ม toggle visibility
+        self.toggle_button = QPushButton("👁️ Toggle Visibility")
+        self.toggle_button.clicked.connect(self.toggle_visibility)
+        self.toggle_button.setToolTip("ซ่อน/แสดงกรอบ (กด V)")
+        self.toggle_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 12px;
+                font-size: 14px;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        layout.addWidget(self.toggle_button)
+        
         # ข้อมูลตำแหน่งและขนาด
         self.position_label = QLabel("ตำแหน่ง: X=100, Y=100, กว้าง=300, สูง=200")
         self.position_label.setStyleSheet("QLabel { font-weight: bold; padding: 8px; }")
         layout.addWidget(self.position_label)
+        
+        # สถานะการมองเห็น
+        self.visibility_label = QLabel("สถานะ: กรอบแสดงอยู่")
+        self.visibility_label.setStyleSheet("QLabel { color: #4CAF50; font-weight: bold; padding: 8px; }")
+        layout.addWidget(self.visibility_label)
         
     def show_selection(self):
         """แสดงกรอบเลือกพื้นที่"""
         self.selection_widget.show()
         self.selection_widget.raise_()
         self.selection_widget.activateWindow()
+        
+    def toggle_visibility(self):
+        """Toggle การแสดงผลกรอบ"""
+        self.selection_widget.toggle_visibility()
+        is_visible = self.selection_widget.is_visible_mode()
+        status = "แสดงอยู่" if is_visible else "ซ่อนอยู่"
+        color = "#4CAF50" if is_visible else "#FF9800"
+        self.visibility_label.setText(f"สถานะ: กรอบ{status}")
+        self.visibility_label.setStyleSheet(f"QLabel {{ color: {color}; font-weight: bold; padding: 8px; }}")
     
     def on_selection_changed(self, x, y, width, height):
         """อัปเดตข้อมูลเมื่อกรอบเปลี่ยน"""
         self.position_label.setText(f"ตำแหน่ง: X={x}, Y={y}, กว้าง={width}, สูง={height}")
         print(f"📐 Selection changed: ({x}, {y}) - {width}x{height}")
+        
+    def keyPressEvent(self, event):
+        """จัดการ keyboard shortcuts"""
+        from PyQt5.QtCore import Qt
+        if event.key() == Qt.Key_V:
+            self.toggle_visibility()
+        else:
+            super().keyPressEvent(event)
     
     def closeEvent(self, event):
         """ปิดหน้าต่าง selection เมื่อปิดหน้าต่างหลัก"""

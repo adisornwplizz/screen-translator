@@ -49,6 +49,9 @@ class SelectionWidget(QWidget):
         self.resize_handle_size = 8
         self.resize_border_width = 6
         
+        # การจัดการการมองเห็น
+        self.visible_mode = True  # สถานะการแสดงผล
+        
         # เปิดใช้งาน mouse tracking เพื่อเปลี่ยน cursor
         self.setMouseTracking(True)
         
@@ -59,11 +62,33 @@ class SelectionWidget(QWidget):
         # แสดงตลอดเวลา
         self.show()
         
+    def get_interactive_region(self):
+        """ได้พื้นที่ที่สามารถโต้ตอบได้ (selection rect + resize handles)"""
+        if not self.visible_mode:
+            return QRect()  # ไม่มีพื้นที่โต้ตอบเมื่อซ่อน
+            
+        # ขยายกรอบออกไปเพื่อรวม resize handles
+        expanded_rect = QRect(self.selection_rect)
+        border = self.resize_border_width + self.resize_handle_size
+        expanded_rect.adjust(-border, -border, border, border)
+        return expanded_rect
+        
+    def should_handle_mouse_event(self, pos):
+        """ตรวจสอบว่าควรจัดการ mouse event หรือไม่"""
+        if not self.visible_mode:
+            return False
+        interactive_region = self.get_interactive_region()
+        return interactive_region.contains(pos)
+        
     def paintEvent(self, event):
+        # ถ้าไม่ต้องการแสดงผล ให้ข้าม
+        if not self.visible_mode:
+            return
+            
         painter = QPainter(self)
         
-        # วาดพื้นหลังโปร่งใสอ่อนๆ
-        painter.fillRect(self.rect(), QColor(255, 255, 255, 25))  # Very light semi-transparent background
+        # ไม่วาดพื้นหลังเต็มหน้าจอเพื่อให้คลิกผ่านได้
+        # painter.fillRect(self.rect(), QColor(255, 255, 255, 25))  # ปิดการใช้งาน
         
         # วาดพื้นที่ที่เลือก (โปร่งใส)
         painter.fillRect(self.selection_rect, QColor(0, 0, 0, 0))
@@ -138,7 +163,12 @@ class SelectionWidget(QWidget):
         if event.button() == Qt.LeftButton:
             pos = event.pos()
             
-            # ตรวจสอบทิศทางการปรับขนาด
+            # ตรวจสอบว่าควรจัดการ event หรือไม่
+            if not self.should_handle_mouse_event(pos):
+                event.ignore()
+                return
+            
+            # เฉพาะในกรอบเลือกพื้นที่หรือขอบปรับขนาดเท่านั้นที่จะจับเหตุการณ์
             resize_direction = self.get_resize_direction(pos)
             
             if resize_direction != self.RESIZE_NONE:
@@ -146,12 +176,23 @@ class SelectionWidget(QWidget):
                 self.resize_direction = resize_direction
                 self.drag_start_pos = pos
                 self.initial_rect = QRect(self.selection_rect)
+                event.accept()
             elif self.selection_rect.contains(pos):
                 self.dragging = True
                 self.drag_start_pos = pos
+                event.accept()
+            else:
+                # ถ้าไม่ได้คลิกในกรอบ ให้ event ผ่านไปยัง application ข้างล่าง
+                event.ignore()
     
     def mouseMoveEvent(self, event):
         pos = event.pos()
+        
+        # ตรวจสอบว่าควรจัดการ event หรือไม่
+        if not self.should_handle_mouse_event(pos) and not (self.dragging or self.resizing):
+            # ถ้าไม่อยู่ในพื้นที่โต้ตอบ และไม่กำลัง drag/resize ให้ ignore
+            event.ignore()
+            return
         
         if self.dragging and self.drag_start_pos:
             # ลากกรอบ
@@ -174,8 +215,11 @@ class SelectionWidget(QWidget):
             self.resize_selection(pos)
             
         else:
-            # เปลี่ยน cursor ตามตำแหน่ง
-            self.update_cursor(pos)
+            # เปลี่ยน cursor ตามตำแหน่ง (เฉพาะเมื่อ visible_mode เป็น True)
+            if self.visible_mode:
+                self.update_cursor(pos)
+            else:
+                self.setCursor(QCursor(Qt.ArrowCursor))
     
     def resize_selection(self, current_pos):
         """ปรับขนาดกรอบตามทิศทางที่เลือก"""
@@ -268,6 +312,11 @@ class SelectionWidget(QWidget):
     
     def update_cursor(self, pos):
         """อัปเดต cursor ตามตำแหน่งที่เลื่อน"""
+        # ถ้าไม่อยู่ในโหมดแสดงผล ไม่ต้องเปลี่ยน cursor
+        if not self.visible_mode:
+            self.setCursor(QCursor(Qt.ArrowCursor))
+            return
+            
         direction = self.get_resize_direction(pos)
         
         if direction == self.RESIZE_TOP or direction == self.RESIZE_BOTTOM:
@@ -302,6 +351,22 @@ class SelectionWidget(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.hide()
+        elif event.key() == Qt.Key_V:  # V key สำหรับ toggle visibility
+            self.toggle_visibility()
+    
+    def toggle_visibility(self):
+        """สลับการแสดงผล โดยที่ยังคงทำงานอยู่"""
+        self.visible_mode = not self.visible_mode
+        self.update()  # repaint เพื่อแสดง/ซ่อน
+        
+    def set_visible_mode(self, visible):
+        """ตั้งค่าการแสดงผล"""
+        self.visible_mode = visible
+        self.update()
+        
+    def is_visible_mode(self):
+        """ตรวจสอบสถานะการแสดงผล"""
+        return self.visible_mode
 
 
 class Window(QMainWindow):
@@ -387,8 +452,26 @@ class Window(QMainWindow):
             QPushButton:hover { background-color: #da190b; }
         """)
         
+        # ปุ่ม toggle visibility
+        self.toggle_button = QPushButton("👁️ ซ่อน/แสดง")
+        self.toggle_button.clicked.connect(self.toggle_selection_visibility)
+        self.toggle_button.setToolTip("ซ่อน/แสดงกรอบเลือกพื้นที่ (Ctrl+V)")
+        self.toggle_button.setStyleSheet("""
+            QPushButton { 
+                background-color: #2196F3; 
+                color: white; 
+                padding: 8px 12px; 
+                font-size: 12px;
+                font-weight: bold; 
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background-color: #1976D2; }
+        """)
+        
         control_layout.addWidget(self.start_button)
         control_layout.addWidget(self.stop_button)
+        control_layout.addWidget(self.toggle_button)
         control_layout.addStretch()
         
         # การตั้งค่าความถี่ - ลดขนาด
@@ -612,3 +695,19 @@ class Window(QMainWindow):
         """อัปเดตภาษาเป้าหมาย (ปิดใช้งาน - ใช้ไทยเท่านั้น)"""
         # ปิดใช้งานการเปลี่ยนภาษา - ใช้ไทยเท่านั้น  
         self.target_language = 'th'
+    
+    def toggle_selection_visibility(self):
+        """สลับการแสดงผลของ selection widget"""
+        self.selection_widget.toggle_visibility()
+        
+    def set_selection_visible(self, visible):
+        """ตั้งค่าการแสดงผลของ selection widget"""
+        self.selection_widget.set_visible_mode(visible)
+        
+    def keyPressEvent(self, event):
+        """จัดการ keyboard shortcuts"""
+        if event.key() == Qt.Key_V and event.modifiers() == Qt.ControlModifier:
+            # Ctrl+V สำหรับ toggle visibility
+            self.toggle_selection_visibility()
+        else:
+            super().keyPressEvent(event)
