@@ -3,7 +3,8 @@ import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QTextEdit, QLabel, 
                             QFrame, QSplitter, QGroupBox, QProgressBar,
-                            QCheckBox, QSpinBox, QSlider)
+                            QCheckBox, QSpinBox, QSlider, QTableWidget, 
+                            QTableWidgetItem, QHeaderView, QTabWidget)
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal, QThread, pyqtSlot, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QCursor
 import pyautogui
@@ -15,6 +16,7 @@ from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from translation.ocr import OCR
 from translation.translator import Translator
+from translation.vocabulary import VocabularyManager
 from config import UI_CONFIG
 
 
@@ -469,6 +471,9 @@ class Window(QMainWindow):
         self.target_language = 'th'
         self.last_detected_text = ""
         
+        # ✨ เพิ่ม Vocabulary Manager
+        self.vocabulary_manager = VocabularyManager(translator=self.translator)
+        
         # การตั้งค่าระยะเวลาการจับภาพ
         self.capture_interval = UI_CONFIG.get('capture_interval', 2000)  # default 2000ms
         
@@ -583,9 +588,16 @@ class Window(QMainWindow):
         status_layout.addWidget(self.status_label)
         status_layout.addWidget(self.help_label)
         
-        # Text area
-        text_group = QGroupBox("คำแปล")
-        text_layout = QVBoxLayout(text_group)
+        # Text area and vocabulary table
+        content_group = QGroupBox("เนื้อหา")
+        content_layout = QVBoxLayout(content_group)
+        
+        # ✨ เพิ่ม Tab Widget สำหรับแบ่งการแสดงผล
+        self.content_tabs = QTabWidget()
+        
+        # Tab 1: คำแปล
+        translation_tab = QWidget()
+        translation_layout = QVBoxLayout(translation_tab)
         
         self.translated_text = QTextEdit()
         self.translated_text.setFont(QFont("Tahoma", 12))
@@ -598,14 +610,130 @@ class Window(QMainWindow):
                 background-color: #FAFAFA;
             }
         """)
-        text_layout.addWidget(self.translated_text)
+        translation_layout.addWidget(self.translated_text)
+        
+        # Tab 2: ตารางคำศัพท์
+        vocabulary_tab = QWidget()
+        vocabulary_layout = QVBoxLayout(vocabulary_tab)
+        
+        # ✨ สร้างตารางคำศัพท์
+        self.vocabulary_table = QTableWidget()
+        self.vocabulary_table.setColumnCount(2)
+        self.vocabulary_table.setHorizontalHeaderLabels(["Vocabulary", "Meaning"])
+        
+        # ตั้งค่าตาราง
+        header = self.vocabulary_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        
+        self.vocabulary_table.setAlternatingRowColors(True)
+        self.vocabulary_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #E0E0E0;
+                border-radius: 6px;
+                background-color: #FAFAFA;
+                gridline-color: #E0E0E0;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #E0E0E0;
+            }
+            QTableWidget::item:selected {
+                background-color: #E3F2FD;
+            }
+            QHeaderView::section {
+                background-color: #F5F5F5;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 2px solid #E0E0E0;
+            }
+        """)
+        
+        # ปุ่มควบคุมตารางคำศัพท์
+        vocab_controls = QHBoxLayout()
+        
+        self.clear_vocab_button = QPushButton("🗑️ ล้างคำศัพท์")
+        self.clear_vocab_button.clicked.connect(self.clear_vocabulary)
+        self.clear_vocab_button.setStyleSheet("""
+            QPushButton { 
+                background-color: #FF5722; 
+                color: white; 
+                padding: 6px 12px; 
+                font-size: 11px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #E64A19; }
+        """)
+        
+        self.vocab_stats_label = QLabel("คำศัพท์: 0 คำ")
+        self.vocab_stats_label.setStyleSheet("QLabel { color: #666; font-size: 11px; }")
+        
+        vocab_controls.addWidget(self.clear_vocab_button)
+        vocab_controls.addStretch()
+        vocab_controls.addWidget(self.vocab_stats_label)
+        
+        vocabulary_layout.addWidget(self.vocabulary_table)
+        vocabulary_layout.addLayout(vocab_controls)
+        
+        # เพิ่ม tabs
+        self.content_tabs.addTab(translation_tab, "🔄 คำแปล")
+        self.content_tabs.addTab(vocabulary_tab, "📚 คำศัพท์")
+        
+        content_layout.addWidget(self.content_tabs)
         
         # Add widgets to main layout
         main_layout.addWidget(control_group)
         main_layout.addWidget(interval_group)
         main_layout.addWidget(status_group)
-        main_layout.addWidget(text_group, 1)
+        main_layout.addWidget(content_group, 1)
         
+    def clear_vocabulary(self):
+        """ล้างคำศัพท์ทั้งหมด"""
+        self.vocabulary_manager.clear_all()
+        self.update_vocabulary_table()
+        self.update_vocabulary_stats()
+        print("🗑️ ล้างคำศัพท์ทั้งหมดแล้ว")
+        
+    def update_vocabulary_table(self):
+        """อัพเดทตารางคำศัพท์"""
+        try:
+            vocabulary_data = self.vocabulary_manager.get_vocabulary_for_display()
+            
+            # ตั้งค่าจำนวนแถว
+            self.vocabulary_table.setRowCount(len(vocabulary_data))
+            
+            # เติมข้อมูลในตาราง
+            for row, (word, meaning) in enumerate(vocabulary_data):
+                # คอลัมน์ Vocabulary
+                word_item = QTableWidgetItem(word)
+                word_item.setFlags(word_item.flags() & ~Qt.ItemIsEditable)  # ไม่ให้แก้ไข
+                self.vocabulary_table.setItem(row, 0, word_item)
+                
+                # คอลัมน์ Meaning
+                meaning_item = QTableWidgetItem(meaning)
+                meaning_item.setFlags(meaning_item.flags() & ~Qt.ItemIsEditable)  # ไม่ให้แก้ไข
+                self.vocabulary_table.setItem(row, 1, meaning_item)
+                
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการอัพเดทตารางคำศัพท์: {e}")
+            
+    def update_vocabulary_stats(self):
+        """อัพเดทสถิติคำศัพท์"""
+        try:
+            stats = self.vocabulary_manager.get_statistics()
+            total = stats['total_words']
+            with_meaning = stats['words_with_meaning']
+            completion_rate = stats['completion_rate']
+            
+            stats_text = f"คำศัพท์: {total} คำ | แปลแล้ว: {with_meaning} คำ ({completion_rate:.1f}%)"
+            self.vocab_stats_label.setText(stats_text)
+            
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการอัพเดทสถิติ: {e}")
+            self.vocab_stats_label.setText("คำศัพท์: 0 คำ")
+    
     def on_selection_changed(self, x, y, width, height):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
         self.current_selection = QRect(x, y, width, height)
@@ -691,6 +819,9 @@ class Window(QMainWindow):
         try:
             self.status_label.setText("สถานะ: กำลังแปล...")
             
+            # ✨ ประมวลผลคำศัพท์จากข้อความใหม่
+            self.vocabulary_manager.process_text(text, context="screen_capture")
+            
             # ตรวจสอบว่า translator พร้อมใช้งานหรือไม่
             if not self.translator.is_available():
                 self.translated_text.clear()
@@ -718,6 +849,10 @@ class Window(QMainWindow):
                 self.translated_text.clear()
                 self.translated_text.append("❌ ไม่สามารถแปลข้อความได้")
                 self.status_label.setText("สถานะ: แปลไม่สำเร็จ")
+            
+            # ✨ อัพเดทตารางคำศัพท์และสถิติ
+            self.update_vocabulary_table()
+            self.update_vocabulary_stats()
                 
         except Exception as e:
             self.translated_text.clear()
