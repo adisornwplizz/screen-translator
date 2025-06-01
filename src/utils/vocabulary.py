@@ -75,16 +75,35 @@ class VocabularyExtractor:
     
     def _extract_thai_vocabulary(self, text: str) -> List[str]:
         """สกัดคำศัพท์ไทย"""
-        # สำหรับภาษาไทย: แยกตามช่องว่างและอักขระพิเศษ
-        words = re.findall(r'[\u0E00-\u0E7F]+', text)
+        # วิธีที่ 1: แยกตามช่องว่าง (ดีสำหรับข้อความที่มีการเว้นวรรค)
+        space_separated = re.split(r'\s+', text.strip())
+        words_from_spaces = []
+        
+        for word in space_separated:
+            # ลบอักขระที่ไม่ใช่ภาษาไทย
+            clean_word = re.sub(r'[^\u0E00-\u0E7F]', '', word)
+            if clean_word:
+                words_from_spaces.append(clean_word)
+        
+        # วิธีที่ 2: หาคำต่อเนื่อง (สำหรับข้อความที่ไม่มีการเว้นวรรค)
+        continuous_words = re.findall(r'[\u0E00-\u0E7F]+', text)
+        
+        # รวมผลลัพธ์จากทั้งสองวิธี
+        all_words = words_from_spaces + continuous_words
         
         # กรองคำที่มีความยาวเหมาะสม
         filtered_words = []
-        for word in words:
+        for word in all_words:
             word = word.strip()
-            if (len(word) >= 2 and  # ยาวอย่างน้อย 2 ตัวอักษร
+            # รับคำที่ยาว 2-10 ตัวอักษร
+            if (2 <= len(word) <= 10 and
                 word.lower() not in self.thai_stop_words and
-                not word.isdigit()):  # ไม่ใช่ตัวเลข
+                not word.isdigit()):
+                
+                # สำหรับคำที่ยาวมาก (>6 ตัวอักษร) ให้เอาเฉพาะคำที่มาจากการแยกด้วยช่องว่าง
+                if len(word) > 6 and word not in words_from_spaces:
+                    continue
+                    
                 filtered_words.append(word)
         
         # ลบคำซ้ำแต่คงลำดับ

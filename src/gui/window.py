@@ -652,9 +652,16 @@ class Window(QMainWindow):
         self.vocabulary_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.vocabulary_table.setAlternatingRowColors(True)
         self.vocabulary_table.setShowGrid(True)
+        self.vocabulary_table.verticalHeader().setVisible(False)  # ซ่อนหมายเลขแถว
         
-        # เพิ่มข้อความ placeholder เมื่อไม่มีข้อมูล
-        self.vocabulary_table.setPlaceholderText("ยังไม่มีคำศัพท์ กรุณาเริ่มการจับภาพ...")
+        # เริ่มต้นด้วยตารางว่าง
+        self.vocabulary_table.setRowCount(1)
+        self.vocabulary_table.setItem(0, 0, QTableWidgetItem("ยังไม่มีคำศัพท์"))
+        self.vocabulary_table.setItem(0, 1, QTableWidgetItem("กรุณาเริ่มการจับภาพ..."))
+        
+        # จัดให้ข้อความอยู่กลาง
+        self.vocabulary_table.item(0, 0).setStyleSheet("color: #999; font-style: italic; text-align: center;")
+        self.vocabulary_table.item(0, 1).setStyleSheet("color: #999; font-style: italic; text-align: center;")
         
         text_layout.addWidget(self.vocabulary_table)
         
@@ -798,9 +805,9 @@ class Window(QMainWindow):
                 # ถ้าไม่มีคำศัพท์ ให้แสดงข้อความแจ้ง
                 self.vocabulary_table.setRowCount(1)
                 no_vocab_item = QTableWidgetItem("ไม่พบคำศัพท์ที่เหมาะสม")
-                no_vocab_item.setStyleSheet("color: #999; font-style: italic;")
+                no_vocab_item.setStyleSheet("color: #999; font-style: italic; text-align: center;")
                 empty_meaning = QTableWidgetItem("-")
-                empty_meaning.setStyleSheet("color: #999; font-style: italic;")
+                empty_meaning.setStyleSheet("color: #999; font-style: italic; text-align: center;")
                 self.vocabulary_table.setItem(0, 0, no_vocab_item)
                 self.vocabulary_table.setItem(0, 1, empty_meaning)
                 return
@@ -816,17 +823,8 @@ class Window(QMainWindow):
                     vocab_item.setStyleSheet("font-weight: 500; color: #333;")
                     self.vocabulary_table.setItem(i, 0, vocab_item)
                     
-                    # แปลคำศัพท์เดี่ยว
-                    if self.translator.is_available():
-                        meaning_result = self.translator.translate(vocab_word, self.target_language)
-                        meaning = meaning_result.get('translated_text', 'ไม่สามารถแปลได้')
-                        
-                        # ถ้าคำแปลเหมือนคำต้นฉบับ ให้แสดงว่าไม่จำเป็นต้องแปล
-                        if meaning.lower() == vocab_word.lower():
-                            meaning = f"({vocab_word})"
-                            
-                    else:
-                        meaning = "ระบบแปลไม่พร้อมใช้งาน"
+                    # แปลคำศัพท์เดี่ยว (ใช้การแปลแบบ batch หากเป็นไปได้)
+                    meaning = self._translate_vocabulary_word(vocab_word, detected_language)
                     
                     # ใส่ความหมายในคอลัมน์ที่สอง
                     meaning_item = QTableWidgetItem(meaning)
@@ -835,6 +833,7 @@ class Window(QMainWindow):
                     
                 except Exception as vocab_error:
                     # ถ้าแปลคำใดไม่ได้ ให้ใส่ข้อความแสดงข้อผิดพลาด
+                    print(f"❌ Error translating '{vocab_word}': {vocab_error}")
                     error_item = QTableWidgetItem("ข้อผิดพลาด")
                     error_item.setStyleSheet("color: #f44336; font-style: italic;")
                     self.vocabulary_table.setItem(i, 1, error_item)
@@ -851,6 +850,33 @@ class Window(QMainWindow):
             self.vocabulary_table.setItem(0, 0, error_item)
             empty_meaning = QTableWidgetItem("")
             self.vocabulary_table.setItem(0, 1, empty_meaning)
+    
+    def _translate_vocabulary_word(self, word, source_language='auto'):
+        """แปลคำศัพท์เดี่ยว พร้อมการจัดการข้อผิดพลาด"""
+        try:
+            if not self.translator.is_available():
+                return "ระบบแปลไม่พร้อมใช้งาน"
+            
+            # แปลคำศัพท์เดี่ยว
+            meaning_result = self.translator.translate(word, self.target_language)
+            meaning = meaning_result.get('translated_text', '')
+            
+            if not meaning:
+                return "ไม่สามารถแปลได้"
+            
+            # ถ้าคำแปลเหมือนคำต้นฉบับ อาจหมายความว่าไม่จำเป็นต้องแปล
+            if meaning.lower().strip() == word.lower().strip():
+                # ลองตรวจสอบว่าเป็นชื่อเฉพาะหรือคำที่ไม่ต้องแปล
+                if source_language == 'en':
+                    return f"({word})"  # แสดงว่าเป็นคำที่ไม่ต้องแปล
+                else:
+                    return meaning
+            
+            return meaning
+            
+        except Exception as e:
+            print(f"❌ Error in _translate_vocabulary_word for '{word}': {e}")
+            return "ข้อผิดพลาด"
     
     def toggle_selection_visibility(self):
         """สลับการแสดงผลของ selection widget"""
