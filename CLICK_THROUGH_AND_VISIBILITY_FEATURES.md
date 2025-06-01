@@ -2,10 +2,11 @@
 
 ## Overview
 
-This document describes the new features added to the SelectionWidget to fix issues #5:
+This document describes the features added to the SelectionWidget to fix issues #5 and #7:
 
 1. **Click-Through Functionality**: Allows clicking on background applications when not clicking directly on the selection box
-2. **Visibility Toggle**: Allows hiding/showing the selection box while maintaining text detection functionality
+2. **Visibility Toggle**: Allows hiding/showing the selection box while maintaining text detection functionality  
+3. **Improved Text Box Movement**: Makes it easier to drag the text box from anywhere within the interactive region
 
 ## Features Added
 
@@ -39,6 +40,21 @@ This document describes the new features added to the SelectionWidget to fix iss
 - Press `Ctrl+V` in the main window to toggle visibility
 - Click the "👁️ ซ่อน/แสดง" button in the main UI
 - When hidden, the selection box is invisible but text detection continues working
+
+### 3. Improved Text Box Movement (Issue #7)
+
+**Problem Solved**: Previously, users could only drag the text box by clicking exactly inside the selection rectangle. There was a "dead zone" around the edges where clicks would be handled but wouldn't start dragging.
+
+**Solution**:
+- Modified `mousePressEvent()` logic to allow dragging from anywhere within the interactive region
+- Eliminated the dead zone between the interactive region and draggable area
+- Preserved all existing resize and click-through functionality
+
+**Usage**:
+- Click and drag from anywhere in or near the selection box to move it
+- The draggable area is now 14 pixels larger on all sides
+- Much easier to grab and move the text box
+- All existing functionality (resize handles, click-through) remains unchanged
 
 ## API Reference
 
