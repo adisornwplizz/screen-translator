@@ -94,8 +94,8 @@ class SelectionWidget(QWidget):
             
         painter = QPainter(self)
         
-        # วาดพื้นที่ที่เลือก (โปร่งใส)
-        painter.fillRect(self.selection_rect, QColor(0, 0, 0, 0))
+        # วาดพื้นที่ที่เลือก (สีดำโปร่งใส 60%)
+        painter.fillRect(self.selection_rect, QColor(0, 0, 0, 153))  # 60% transparency = 255 * 0.6 = 153
         
         # ✨ Highlight moveable area when hovering (NEW FEATURE)
         if self.is_hovering_move_area and not self.resizing:
@@ -450,11 +450,11 @@ class SelectionWidget(QWidget):
 # Use the enhanced SelectionWidget in the main Window class
 # (The rest of the Window class remains the same as in the original file)
 class Window(QMainWindow):
-    def __init__(self, title="Screen Translator - Enhanced Movement"):
+    def __init__(self, title="Screen Translator"):
         super().__init__()
         self.title = title
         self.setWindowTitle(title)
-        self.setGeometry(100, 100, 500, 400)
+        self.setGeometry(100, 100, 480, 600)  # เพิ่มความสูงเพื่อรองรับ layout ใหม่
         
         # ✨ Use the enhanced SelectionWidget
         self.selection_widget = SelectionWidget()
@@ -479,48 +479,129 @@ class Window(QMainWindow):
         self.capture_timer.timeout.connect(self.capture_and_process)
         
     def setup_ui(self):
-        """ตั้งค่า UI"""
+        """ตั้งค่า UI - Windows Black & White Theme"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
+        # ตั้งค่า Windows-inspired styling
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            QWidget {
+                background-color: #ffffff;
+                color: #000000;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+            QGroupBox {
+                font-weight: bold;
+                font-size: 11px;
+                border: 2px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                background-color: #f8f8f8;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: #ffffff;
+                color: #000000;
+            }
+        """)
+        
         # Layout หลัก
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # ปุ่มควบคุมหลัก
-        control_group = QGroupBox("การควบคุม - ✨ Enhanced Movement")
-        control_layout = QHBoxLayout(control_group)
+        # 1. กล่องคำแปลอยู่ด้านบนสุด
+        text_group = QGroupBox("📄 คำแปล")
+        text_layout = QVBoxLayout(text_group)
         
-        self.start_button = QPushButton("🎯 เริ่ม")
+        self.translated_text = QTextEdit()
+        self.translated_text.setFont(QFont("Segoe UI", 12))
+        self.translated_text.setPlaceholderText("คำแปลจะแสดงที่นี่...")
+        self.translated_text.setStyleSheet("""
+            QTextEdit { 
+                border: 2px solid #cccccc; 
+                border-radius: 4px; 
+                padding: 8px; 
+                background-color: #ffffff;
+                color: #000000;
+                selection-background-color: #0078d4;
+                selection-color: #ffffff;
+            }
+            QTextEdit:focus {
+                border: 2px solid #0078d4;
+            }
+        """)
+        text_layout.addWidget(self.translated_text)
+        main_layout.addWidget(text_group, 1)  # ให้พื้นที่มากที่สุด
+        
+        # 2. ปุ่มควบคุมและการตั้งค่าอยู่ด้านล่างในรูปแบบ 3 column
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(8)
+        
+        # Column 1: การควบคุม
+        control_group = QGroupBox("🎮 การควบคุม")
+        control_layout = QVBoxLayout(control_group)
+        
+        self.start_button = QPushButton("▶️ เริ่ม")
         self.start_button.clicked.connect(self.start_capture)
         self.start_button.setStyleSheet("""
             QPushButton { 
-                background-color: #4CAF50; 
+                background-color: #0078d4; 
                 color: white; 
-                padding: 8px 12px; 
-                font-size: 12px;
+                padding: 8px 16px; 
+                font-size: 11px;
                 font-weight: bold; 
-                border: none;
-                border-radius: 6px;
+                border: 1px solid #005a9e;
+                border-radius: 3px;
+                min-width: 80px;
             }
-            QPushButton:hover { background-color: #45a049; }
+            QPushButton:hover { 
+                background-color: #106ebe; 
+                border: 1px solid #005a9e;
+            }
+            QPushButton:pressed {
+                background-color: #005a9e;
+            }
+            QPushButton:disabled {
+                background-color: #f3f2f1;
+                color: #a19f9d;
+                border: 1px solid #d2d0ce;
+            }
         """)
         
-        self.stop_button = QPushButton("⏹️ หยุด")
+        self.stop_button = QPushButton("⏸️ หยุด")
         self.stop_button.clicked.connect(self.stop_capture)
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet("""
             QPushButton { 
-                background-color: #f44336; 
+                background-color: #d83b01; 
                 color: white; 
-                padding: 8px 12px; 
-                font-size: 12px;
+                padding: 8px 16px; 
+                font-size: 11px;
                 font-weight: bold; 
-                border: none;
-                border-radius: 6px;
+                border: 1px solid #a4262c;
+                border-radius: 3px;
+                min-width: 80px;
             }
-            QPushButton:hover { background-color: #da190b; }
+            QPushButton:hover { 
+                background-color: #f2583e; 
+                border: 1px solid #a4262c;
+            }
+            QPushButton:pressed {
+                background-color: #a4262c;
+            }
+            QPushButton:disabled {
+                background-color: #f3f2f1;
+                color: #a19f9d;
+                border: 1px solid #d2d0ce;
+            }
         """)
         
         # ปุ่ม toggle visibility
@@ -529,82 +610,91 @@ class Window(QMainWindow):
         self.toggle_button.setToolTip("ซ่อน/แสดงกรอบเลือกพื้นที่ (Ctrl+V)")
         self.toggle_button.setStyleSheet("""
             QPushButton { 
-                background-color: #2196F3; 
-                color: white; 
-                padding: 8px 12px; 
-                font-size: 12px;
-                font-weight: bold; 
-                border: none;
-                border-radius: 6px;
+                background-color: #ffffff; 
+                color: #323130; 
+                padding: 8px 16px; 
+                font-size: 11px;
+                font-weight: normal; 
+                border: 1px solid #8a8886;
+                border-radius: 3px;
+                min-width: 100px;
             }
-            QPushButton:hover { background-color: #1976D2; }
+            QPushButton:hover { 
+                background-color: #f3f2f1; 
+                border: 1px solid #323130;
+            }
+            QPushButton:pressed {
+                background-color: #edebe9;
+            }
         """)
         
         control_layout.addWidget(self.start_button)
         control_layout.addWidget(self.stop_button)
         control_layout.addWidget(self.toggle_button)
-        control_layout.addStretch()
+        bottom_layout.addWidget(control_group)
         
-        # Capture interval control
-        interval_group = QGroupBox("การตั้งค่าระยะเวลา")
-        interval_layout = QHBoxLayout(interval_group)
+        # Column 2: การตั้งค่าระยะเวลา
+        interval_group = QGroupBox("⏱️ การตั้งค่าระยะเวลา")
+        interval_layout = QVBoxLayout(interval_group)
         
         interval_label = QLabel("ระยะเวลาจับภาพ (วินาที):")
+        interval_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
+        
         self.interval_slider = QSlider(Qt.Horizontal)
-        self.interval_slider.setMinimum(UI_CONFIG.get('capture_interval_min', 500) // 1000)  # Convert to seconds
-        self.interval_slider.setMaximum(UI_CONFIG.get('capture_interval_max', 10000) // 1000)  # Convert to seconds
-        self.interval_slider.setValue(self.capture_interval // 1000)  # Convert to seconds
+        self.interval_slider.setMinimum(UI_CONFIG.get('capture_interval_min', 500) // 1000)  
+        self.interval_slider.setMaximum(UI_CONFIG.get('capture_interval_max', 10000) // 1000)  
+        self.interval_slider.setValue(self.capture_interval // 1000)  
         self.interval_slider.valueChanged.connect(self.on_interval_changed)
+        self.interval_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #d2d0ce;
+                height: 6px;
+                background: #f3f2f1;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #0078d4;
+                border: 1px solid #005a9e;
+                width: 18px;
+                margin: -7px 0;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #106ebe;
+            }
+        """)
         
         self.interval_value_label = QLabel(f"{self.capture_interval // 1000}s")
         self.interval_value_label.setMinimumWidth(40)
-        self.interval_value_label.setStyleSheet("QLabel { font-weight: bold; color: #2E7D32; }")
+        self.interval_value_label.setStyleSheet("QLabel { font-weight: bold; color: #0078d4; font-size: 11px; }")
         
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.interval_slider)
         interval_layout.addWidget(self.interval_value_label)
+        bottom_layout.addWidget(interval_group)
         
-        # Status info
-        status_group = QGroupBox("สถานะ - ✨ Enhanced Features")
+        # Column 3: สถานะ
+        status_group = QGroupBox("📊 สถานะ")
         status_layout = QVBoxLayout(status_group)
         
         self.position_label = QLabel("ตำแหน่ง: X=100, Y=100, กว้าง=300, สูง=200")
-        self.position_label.setStyleSheet("QLabel { font-size: 11px; color: #555; }")
+        self.position_label.setStyleSheet("QLabel { font-size: 10px; color: #605e5c; }")
         
         self.status_label = QLabel("สถานะ: พร้อมใช้งาน")
-        self.status_label.setStyleSheet("QLabel { color: #2E7D32; font-size: 11px; }")
+        self.status_label.setStyleSheet("QLabel { color: #107c10; font-size: 10px; font-weight: bold; }")
         
-        # ✨ Add movement help text
+        # Help text
         self.help_label = QLabel("💡 วิธีการใช้: คลิกและลากบริเวณกรอบเพื่อย้าย | เลื่อนเมาส์เพื่อดูไฮไลท์")
-        self.help_label.setStyleSheet("QLabel { font-size: 10px; color: #666; font-style: italic; }")
+        self.help_label.setStyleSheet("QLabel { font-size: 9px; color: #8a8886; font-style: italic; }")
         self.help_label.setWordWrap(True)
         
         status_layout.addWidget(self.position_label)
         status_layout.addWidget(self.status_label)
         status_layout.addWidget(self.help_label)
+        bottom_layout.addWidget(status_group)
         
-        # Text area
-        text_group = QGroupBox("คำแปล")
-        text_layout = QVBoxLayout(text_group)
-        
-        self.translated_text = QTextEdit()
-        self.translated_text.setFont(QFont("Tahoma", 12))
-        self.translated_text.setPlaceholderText("คำแปลจะแสดงที่นี่...")
-        self.translated_text.setStyleSheet("""
-            QTextEdit { 
-                border: 1px solid #E0E0E0; 
-                border-radius: 6px; 
-                padding: 8px; 
-                background-color: #FAFAFA;
-            }
-        """)
-        text_layout.addWidget(self.translated_text)
-        
-        # Add widgets to main layout
-        main_layout.addWidget(control_group)
-        main_layout.addWidget(interval_group)
-        main_layout.addWidget(status_group)
-        main_layout.addWidget(text_group, 1)
+        # เพิ่ม layout 3 column ลงใน main layout
+        main_layout.addLayout(bottom_layout)
         
     def on_selection_changed(self, x, y, width, height):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
@@ -747,22 +837,22 @@ class Window(QMainWindow):
 
 
 def main():
-    """✨ Enhanced main function with improved box movement"""
+    """Enhanced main function with Windows-inspired black & white design"""
     app = QApplication(sys.argv)
     
-    print("🚀 เริ่มทดสอบ Enhanced Screen Translator")
+    print("🚀 เริ่มทดสอบ Screen Translator - Windows Theme")
     print("=" * 50)
-    print("✨ New Features:")
-    print("   • Enhanced box movement with hover feedback")
-    print("   • Dynamic border colors (red/blue/green)")
-    print("   • Visual highlight when hovering over move area")
-    print("   • Improved status indicators")
-    print("   • Smooth movement feedback")
+    print("✨ Design Features:")
+    print("   • Translation box at the top")
+    print("   • Controls and settings below translation area")
+    print("   • Windows-inspired black & white theme")
+    print("   • 60% transparent black selection box")
+    print("   • Modern Windows UI styling")
     print("")
     print("💡 วิธีการใช้:")
     print("   • เลื่อนเมาส์ไปบนกรอบเพื่อดูการไฮไลท์")
     print("   • คลิกและลากในพื้นที่กรอบเพื่อย้าย")
-    print("   • สังเกตการเปลี่ยนสีขอบขณะเคลื่อนที่")
+    print("   • กล่องคำแปลอยู่ด้านบนสุดของหน้าต่าง")
     print("=" * 50)
     
     window = Window()
