@@ -14,7 +14,7 @@ import hashlib
 class OllamaTranslator:
     """Translator ที่ใช้ Ollama API กับ Gemma3:4b model"""
     
-    def __init__(self, host: str = "localhost", port: int = 11434, model: str = "gemma3:4b"):
+    def __init__(self, host: str = "localhost", port: int = 11434, model: str = "gemma3:4b", custom_prompt: str = ""):
         """
         เริ่มต้น Ollama Translator
         
@@ -22,10 +22,12 @@ class OllamaTranslator:
             host (str): Ollama server host
             port (int): Ollama server port
             model (str): Model name ที่จะใช้
+            custom_prompt (str): Custom prompt template สำหรับการแปล
         """
         self.host = host
         self.port = port
         self.model = model
+        self.custom_prompt = custom_prompt
         self.base_url = f"http://{host}:{port}"
         self.api_url = f"{self.base_url}/api/generate"
         self.session = requests.Session()
@@ -44,6 +46,20 @@ class OllamaTranslator:
             print(f"✅ เชื่อมต่อ Ollama สำเร็จ - Model: {self.model}")
         else:
             print(f"❌ ไม่สามารถเชื่อมต่อ Ollama ได้ - {self.base_url}")
+    
+    def update_model(self, model: str):
+        """อัปเดต model ที่ใช้"""
+        self.model = model
+        # ล้าง cache เมื่อเปลี่ยน model
+        self.translation_cache.clear()
+        print(f"🔄 เปลี่ยน model เป็น: {self.model}")
+    
+    def update_custom_prompt(self, custom_prompt: str):
+        """อัปเดต custom prompt"""
+        self.custom_prompt = custom_prompt
+        # ล้าง cache เมื่อเปลี่ยน prompt
+        self.translation_cache.clear()
+        print(f"🔄 อัปเดต custom prompt: {'ใช้' if custom_prompt else 'ไม่ใช้'}")
 
     def _test_connection(self) -> bool:
         """ทดสอบการเชื่อมต่อกับ Ollama"""
@@ -106,8 +122,13 @@ class OllamaTranslator:
         return 'unknown'
 
     def _create_prompt(self, text: str) -> str:
-        """สร้าง prompt สำหรับ Ollama - ปรับปรุงภาษาอังกฤษและแปลเป็นไทย ตอบกลับเฉพาะประโยคภาษาไทยเท่านั้น"""
-        prompt = f"""
+        """สร้าง prompt สำหรับ Ollama - ใช้ custom prompt หรือ default prompt"""
+        if self.custom_prompt:
+            # ใช้ custom prompt และแทนที่ {text} placeholder
+            return self.custom_prompt.format(text=text)
+        else:
+            # ใช้ default prompt
+            prompt = f"""
 For the following English text, please go through each sentence and paragraph to enhance its readability and naturalness, making it sound like it was originally written by a native English speaker. Pay attention to sentence structure, vocabulary, and common expressions. Once the English version is optimized, please provide a comprehensive and accurate Thai translation.
 
 English text:
@@ -115,7 +136,7 @@ English text:
 
 Respond ONLY with the final Thai translation sentence. Do not include any English, explanations, or extra formatting.
 """
-        return prompt
+            return prompt
 
     def translate(self, text: str, target_language: str = 'th', source_language: str = 'auto') -> Dict:
         """

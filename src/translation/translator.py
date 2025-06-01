@@ -34,21 +34,25 @@ except ImportError as e:
 
 
 class Translator:
-    def __init__(self, service='ollama'):
+    def __init__(self, service='ollama', ollama_model='gemma3:4b', custom_prompt=''):
         """เริ่มต้น Translator
         
         Args:
             service (str): บริการแปลที่จะใช้ ('google', 'ollama')
+            ollama_model (str): Model ที่ใช้สำหรับ Ollama
+            custom_prompt (str): Custom prompt สำหรับ Ollama
         """
         self.service = service
         self.google_translator = None
         self.ollama_translator = None
         self.api_key = None
+        self.ollama_model = ollama_model
+        self.custom_prompt = custom_prompt
         
         # เริ่มต้น service ที่เลือก
         if service == 'ollama':
             try:
-                self.ollama_translator = OllamaTranslator()
+                self.ollama_translator = OllamaTranslator(model=ollama_model, custom_prompt=custom_prompt)
                 if self.ollama_translator.is_available():
                     print("✅ เชื่อมต่อ Ollama สำเร็จ")
                 else:

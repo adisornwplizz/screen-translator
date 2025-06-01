@@ -5,7 +5,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from config import OCR_CONFIG, CAPTURE_CONFIG
+from config import OCR_CONFIG, CAPTURE_CONFIG, OLLAMA_CONFIG
 import base64
 import requests
 from io import BytesIO
@@ -13,11 +13,13 @@ from .ollama_translator import OllamaTranslator
 
 
 class OCR:
-    def __init__(self, engine='tesseract'):
+    def __init__(self, engine='tesseract', vision_model='gemma3:4b'):
         """เริ่มต้น OCR engine
         engine: 'tesseract' หรือ 'ollama_vision' (AI Vision)
+        vision_model: model ที่ใช้สำหรับ ollama_vision
         """
         self.engine = engine
+        self.vision_model = vision_model
         try:
             if self.engine == 'tesseract':
                 if os.path.exists(OCR_CONFIG['tesseract_cmd']):
@@ -25,9 +27,16 @@ class OCR:
                 else:
                     print("⚠️  Tesseract ไม่พบในตำแหน่งที่กำหนด กรุณาติดตั้ง Tesseract-OCR")
             elif self.engine == 'ollama_vision':
-                self.ollama = OllamaTranslator(model='gemma3:4b')
+                self.ollama = OllamaTranslator(model=self.vision_model)
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการตั้งค่า OCR: {e}")
+    
+    def update_vision_model(self, model: str):
+        """อัปเดต vision model สำหรับ ollama_vision"""
+        self.vision_model = model
+        if self.engine == 'ollama_vision':
+            self.ollama = OllamaTranslator(model=self.vision_model)
+            print(f"🔄 เปลี่ยน vision model เป็น: {self.vision_model}")
 
     def capture_screen(self, region):
         """จับภาพหน้าจอในพื้นที่ที่กำหนด
@@ -103,7 +112,7 @@ class OCR:
             return image
 
     def extract_text_ollama_vision(self, image):
-        """ใช้ Ollama Vision (gemma3:4b) อ่านข้อความจากภาพ"""
+        """ใช้ Ollama Vision อ่านข้อความจากภาพ"""
         try:
             # แปลงภาพเป็น base64
             buffered = BytesIO()
@@ -111,7 +120,7 @@ class OCR:
             img_b64 = base64.b64encode(buffered.getvalue()).decode()
             prompt = "Read all text in this image. Return only the text, no explanation."
             payload = {
-                "model": "gemma3:4b",
+                "model": self.vision_model,
                 "prompt": prompt,
                 "images": [img_b64],
                 "stream": False,

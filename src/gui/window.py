@@ -3,10 +3,10 @@ import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QTextEdit, QLabel, 
                             QFrame, QSplitter, QGroupBox, QProgressBar,
-                            QCheckBox, QSpinBox, QSlider)
+                            QCheckBox, QSpinBox, QSlider, QComboBox)
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal, QThread, pyqtSlot, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QCursor
-import pyautogui
+# import pyautogui  # Commented temporarily due to install issues
 import cv2
 import numpy as np
 from PIL import Image
@@ -15,7 +15,9 @@ from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from translation.ocr import OCR
 from translation.translator import Translator
-from config import UI_CONFIG
+from translation.ollama_service import ollama_service
+from translation.ollama_translator import OllamaTranslator
+from config import UI_CONFIG, OLLAMA_CONFIG
 
 
 class SelectionWidget(QWidget):
@@ -463,8 +465,14 @@ class Window(QMainWindow):
         # Rest of initialization...
         self.current_selection = QRect(100, 100, 300, 200)
         self.is_capturing = False
-        self.ocr = OCR(engine='ollama_vision')
-        self.translator = Translator(service='ollama')
+        
+        # Ollama configuration
+        self.vision_model = OLLAMA_CONFIG['vision_model']
+        self.translation_model = OLLAMA_CONFIG['translation_model']
+        self.custom_prompt = OLLAMA_CONFIG['custom_prompt']
+        
+        self.ocr = OCR(engine='ollama_vision', vision_model=self.vision_model)
+        self.translator = Translator(service='ollama', ollama_model=self.translation_model, custom_prompt=self.custom_prompt)
         self.auto_translate = True
         self.target_language = 'th'
         self.last_detected_text = ""
@@ -693,8 +701,101 @@ class Window(QMainWindow):
         status_layout.addWidget(self.help_label)
         bottom_layout.addWidget(status_group)
         
-        # เพิ่ม layout 3 column ลงใน main layout
+        # Column 4: การตั้งค่า Ollama Models
+        ollama_group = QGroupBox("🤖 การตั้งค่า Ollama")
+        ollama_layout = QVBoxLayout(ollama_group)
+        
+        # Vision Model Selection
+        vision_label = QLabel("AI Vision Model:")
+        vision_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
+        
+        self.vision_model_combo = QComboBox()
+        self.vision_model_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #8a8886;
+                border-radius: 3px;
+                padding: 4px;
+                background-color: #ffffff;
+                color: #323130;
+                font-size: 10px;
+            }
+            QComboBox:drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left: 1px solid #8a8886;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border: 2px solid #323130;
+                width: 6px;
+                height: 6px;
+                border-top: none;
+                border-right: none;
+                border-bottom-right-radius: 1px;
+            }
+        """)
+        self.vision_model_combo.currentTextChanged.connect(self.on_vision_model_changed)
+        
+        # Translation Model Selection
+        translation_label = QLabel("Translation Model:")
+        translation_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
+        
+        self.translation_model_combo = QComboBox()
+        self.translation_model_combo.setStyleSheet(self.vision_model_combo.styleSheet())
+        self.translation_model_combo.currentTextChanged.connect(self.on_translation_model_changed)
+        
+        # Custom Prompt
+        prompt_label = QLabel("Custom Prompt:")
+        prompt_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
+        
+        self.prompt_text = QTextEdit()
+        self.prompt_text.setMaximumHeight(80)
+        self.prompt_text.setPlaceholderText("ใส่ custom prompt หรือเว้นว่างเพื่อใช้ default...")
+        self.prompt_text.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #8a8886;
+                border-radius: 3px;
+                padding: 4px;
+                background-color: #ffffff;
+                color: #323130;
+                font-size: 10px;
+            }
+        """)
+        self.prompt_text.textChanged.connect(self.on_custom_prompt_changed)
+        
+        # Reset Prompt Button
+        self.reset_prompt_btn = QPushButton("🔄 รีเซ็ต")
+        self.reset_prompt_btn.clicked.connect(self.reset_custom_prompt)
+        self.reset_prompt_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f3f2f1;
+                color: #323130;
+                padding: 4px 8px;
+                font-size: 10px;
+                border: 1px solid #8a8886;
+                border-radius: 3px;
+                max-width: 60px;
+            }
+            QPushButton:hover {
+                background-color: #e1dfdd;
+            }
+        """)
+        
+        ollama_layout.addWidget(vision_label)
+        ollama_layout.addWidget(self.vision_model_combo)
+        ollama_layout.addWidget(translation_label)
+        ollama_layout.addWidget(self.translation_model_combo)
+        ollama_layout.addWidget(prompt_label)
+        ollama_layout.addWidget(self.prompt_text)
+        ollama_layout.addWidget(self.reset_prompt_btn)
+        bottom_layout.addWidget(ollama_group)
+        
+        # เพิ่ม layout 4 column ลงใน main layout
         main_layout.addLayout(bottom_layout)
+        
+        # โหลด Ollama models เมื่อเริ่มต้น
+        self.load_ollama_models()
         
     def on_selection_changed(self, x, y, width, height):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
@@ -821,6 +922,92 @@ class Window(QMainWindow):
     def set_selection_visible(self, visible):
         """ตั้งค่าการแสดงผลของ selection widget"""
         self.selection_widget.set_visible_mode(visible)
+    
+    def load_ollama_models(self):
+        """โหลดรายการ models จาก Ollama และอัปเดต UI"""
+        try:
+            # ล้างรายการเดิม
+            self.vision_model_combo.clear()
+            self.translation_model_combo.clear()
+            
+            if ollama_service.is_available():
+                # ดึงรายการ models
+                vision_models = ollama_service.get_vision_models()
+                text_models = ollama_service.get_text_models()
+                
+                # เพิ่มลงใน combo boxes
+                self.vision_model_combo.addItems(vision_models)
+                self.translation_model_combo.addItems(text_models)
+                
+                # ตั้งค่า current selection
+                if self.vision_model in vision_models:
+                    self.vision_model_combo.setCurrentText(self.vision_model)
+                if self.translation_model in text_models:
+                    self.translation_model_combo.setCurrentText(self.translation_model)
+                
+                print(f"✅ โหลด Ollama models สำเร็จ: Vision={len(vision_models)}, Text={len(text_models)}")
+            else:
+                # ใส่ default model เมื่อ Ollama ไม่พร้อมใช้งาน
+                self.vision_model_combo.addItem(self.vision_model)
+                self.translation_model_combo.addItem(self.translation_model)
+                print("⚠️ Ollama ไม่พร้อมใช้งาน - ใช้ default models")
+                
+        except Exception as e:
+            print(f"❌ Error loading Ollama models: {e}")
+            # Fallback ถ้ามีข้อผิดพลาด
+            self.vision_model_combo.addItem(self.vision_model)
+            self.translation_model_combo.addItem(self.translation_model)
+        
+        # ตั้งค่า custom prompt
+        self.prompt_text.setText(self.custom_prompt)
+    
+    def on_vision_model_changed(self, model_name):
+        """เมื่อเปลี่ยน Vision Model"""
+        if model_name and model_name != self.vision_model:
+            self.vision_model = model_name
+            # อัปเดต OCR ให้ใช้ model ใหม่
+            self.ocr.update_vision_model(model_name)
+            print(f"🔄 เปลี่ยน Vision Model เป็น: {model_name}")
+            
+            # อัปเดต config
+            OLLAMA_CONFIG['vision_model'] = model_name
+    
+    def on_translation_model_changed(self, model_name):
+        """เมื่อเปลี่ยน Translation Model"""
+        if model_name and model_name != self.translation_model:
+            self.translation_model = model_name
+            # อัปเดต translator ให้ใช้ model ใหม่
+            if hasattr(self.translator, 'ollama_translator') and self.translator.ollama_translator:
+                self.translator.ollama_translator.update_model(model_name)
+            print(f"🔄 เปลี่ยน Translation Model เป็น: {model_name}")
+            
+            # อัปเดต config
+            OLLAMA_CONFIG['translation_model'] = model_name
+    
+    def on_custom_prompt_changed(self):
+        """เมื่อเปลี่ยน Custom Prompt"""
+        new_prompt = self.prompt_text.toPlainText().strip()
+        if new_prompt != self.custom_prompt:
+            self.custom_prompt = new_prompt
+            # อัปเดต translator ให้ใช้ prompt ใหม่
+            if hasattr(self.translator, 'ollama_translator') and self.translator.ollama_translator:
+                self.translator.ollama_translator.update_custom_prompt(new_prompt)
+            print(f"🔄 อัปเดต Custom Prompt: {'ใช้' if new_prompt else 'ไม่ใช้ (default)'}")
+            
+            # อัปเดต config
+            OLLAMA_CONFIG['custom_prompt'] = new_prompt
+    
+    def reset_custom_prompt(self):
+        """รีเซ็ต Custom Prompt เป็น default"""
+        self.prompt_text.setText("")
+        self.custom_prompt = ""
+        # อัปเดต translator
+        if hasattr(self.translator, 'ollama_translator') and self.translator.ollama_translator:
+            self.translator.ollama_translator.update_custom_prompt("")
+        print("🔄 รีเซ็ต Custom Prompt เป็น default")
+        
+        # อัปเดต config
+        OLLAMA_CONFIG['custom_prompt'] = ""
         
     def keyPressEvent(self, event):
         """จัดการ keyboard shortcuts"""

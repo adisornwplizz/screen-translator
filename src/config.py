@@ -40,6 +40,21 @@ CAPTURE_CONFIG = {
     'debug_folder': 'debug_images'
 }
 
+# การตั้งค่า Ollama Models
+OLLAMA_CONFIG = {
+    'host': 'localhost',
+    'port': 11434,
+    'vision_model': 'gemma3:4b',  # Model สำหรับ AI Vision (OCR)
+    'translation_model': 'gemma3:4b',  # Model สำหรับการแปล
+    'custom_prompt': '',  # Custom prompt สำหรับการแปล (เปล่า = ใช้ default)
+    'default_prompt': """For the following English text, please go through each sentence and paragraph to enhance its readability and naturalness, making it sound like it was originally written by a native English speaker. Pay attention to sentence structure, vocabulary, and common expressions. Once the English version is optimized, please provide a comprehensive and accurate Thai translation.
+
+English text:
+{text}
+
+Respond ONLY with the final Thai translation sentence. Do not include any English, explanations, or extra formatting."""
+}
+
 # Legacy settings (เก็บไว้เพื่อความเข้ากันได้)
 API_KEY = "your_translation_api_key_here"
 OCR_API_URL = "https://api.ocr-service.com/recognize"
