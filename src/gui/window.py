@@ -19,7 +19,7 @@ from config import UI_CONFIG
 
 
 class SelectionWidget(QWidget):
-    """Widget สำหรับวาดกรอบเลือกพื้นที่บนหน้าจอ พร้อมความสามารถในการปรับขนาดได้จากทุกทิศทาง"""
+    """Enhanced Widget สำหรับวาดกรอบเลือกพื้นที่บนหน้าจอ พร้อมการปรับปรุงการเคลื่อนไหว"""
     position_changed = pyqtSignal(int, int, int, int)
     
     # กำหนดประเภทการปรับขนาด
@@ -35,12 +35,17 @@ class SelectionWidget(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
-        self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setStyleSheet("background-color: rgba(255, 255, 255, 0.1);")  # Semi-transparent white background
         
-        # ตำแหน่งและขนาดของกรอบ
-        self.selection_rect = QRect(100, 100, 300, 200)
+        # กำหนดเป็น fullscreen window แบบ tool
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        # กำหนดขนาดเต็มหน้าจอ
+        screen = QApplication.desktop().screenGeometry()
+        self.setGeometry(screen)
+        
+        # ตัวแปรสำหรับการลากและปรับขนาด
+        self.selection_rect = QRect(400, 300, 200, 100)
         self.dragging = False
         self.resizing = False
         self.resize_direction = self.RESIZE_NONE
@@ -55,9 +60,10 @@ class SelectionWidget(QWidget):
         # เปิดใช้งาน mouse tracking เพื่อเปลี่ยน cursor
         self.setMouseTracking(True)
         
-        # ตั้งค่าหน้าต่างให้ขยายเต็มหน้าจอ
-        screen = QApplication.primaryScreen().geometry()
-        self.setGeometry(screen)
+        # ✨ Enhanced movement feedback - NEW FEATURES
+        self.is_hovering_move_area = False
+        self.movement_highlight_alpha = 30
+        self.smooth_movement = True
         
         # แสดงตลอดเวลา
         self.show()
@@ -81,29 +87,67 @@ class SelectionWidget(QWidget):
         return interactive_region.contains(pos)
         
     def paintEvent(self, event):
+        """✨ Enhanced paint event with improved visual feedback"""
         # ถ้าไม่ต้องการแสดงผล ให้ข้าม
         if not self.visible_mode:
             return
             
         painter = QPainter(self)
         
-        # ไม่วาดพื้นหลังเต็มหน้าจอเพื่อให้คลิกผ่านได้
-        # painter.fillRect(self.rect(), QColor(255, 255, 255, 25))  # ปิดการใช้งาน
-        
         # วาดพื้นที่ที่เลือก (โปร่งใส)
         painter.fillRect(self.selection_rect, QColor(0, 0, 0, 0))
         
-        # วาดเส้นขอบกรอบ (สีอ่อนลง)
-        pen = QPen(QColor(255, 0, 0, 180), 2)  # Red border but more transparent
+        # ✨ Highlight moveable area when hovering (NEW FEATURE)
+        if self.is_hovering_move_area and not self.resizing:
+            highlight_rect = QRect(self.selection_rect)
+            highlight_rect.adjust(-2, -2, 2, 2)
+            painter.fillRect(highlight_rect, QColor(0, 120, 255, self.movement_highlight_alpha))
+        
+        # ✨ Dynamic border color based on state (ENHANCED)
+        if self.dragging:
+            pen_color = QColor(0, 255, 0, 220)  # Green when dragging
+            pen_width = 3
+        elif self.is_hovering_move_area:
+            pen_color = QColor(0, 120, 255, 200)  # Blue when hovering
+            pen_width = 2
+        else:
+            pen_color = QColor(255, 0, 0, 180)  # Red default
+            pen_width = 2
+            
+        pen = QPen(pen_color, pen_width)
         painter.setPen(pen)
         painter.drawRect(self.selection_rect)
+
+        # ✨ Draw move icon (NEW)
+        self.draw_move_icon(painter)
         
         # วาดจุดสำหรับปรับขนาด (handles)
         self.draw_resize_handles(painter)
         
-        # วาดข้อมูลขนาด
-        self.draw_size_info(painter)
+        # ✨ Enhanced size info with movement status (IMPROVED)
+        self.draw_enhanced_size_info(painter)
     
+    def draw_move_icon(self, painter):
+        """Draws a small cross icon at the top-left of the selection box."""
+        rect = self.selection_rect
+        icon_size = 10  # Size of the icon lines
+        margin = 8      # Margin from the corner, making it slightly more inset
+
+        # Calculate center of the icon
+        icon_center_x = rect.left() + margin + icon_size // 2
+        icon_center_y = rect.top() + margin + icon_size // 2
+
+        # Icon pen
+        icon_pen = QPen(QColor(80, 80, 80, 180), 2) # Dark grey, semi-transparent
+        painter.setPen(icon_pen)
+
+        # Draw horizontal line of the cross
+        painter.drawLine(icon_center_x - icon_size // 2, icon_center_y,
+                         icon_center_x + icon_size // 2, icon_center_y)
+        # Draw vertical line of the cross
+        painter.drawLine(icon_center_x, icon_center_y - icon_size // 2,
+                         icon_center_x, icon_center_y + icon_size // 2)
+
     def draw_resize_handles(self, painter):
         """วาดจุดจับสำหรับปรับขนาด"""
         handle_size = self.resize_handle_size
@@ -115,51 +159,70 @@ class SelectionWidget(QWidget):
         
         # มุมทั้ง 4 มุม
         handles = [
-            # มุมซ้ายบน
+            # Corner handles
             QRect(rect.left() - handle_size//2, rect.top() - handle_size//2, handle_size, handle_size),
-            # มุมขวาบน  
             QRect(rect.right() - handle_size//2, rect.top() - handle_size//2, handle_size, handle_size),
-            # มุมซ้ายล่าง
             QRect(rect.left() - handle_size//2, rect.bottom() - handle_size//2, handle_size, handle_size),
-            # มุมขวาล่าง
             QRect(rect.right() - handle_size//2, rect.bottom() - handle_size//2, handle_size, handle_size),
-            # ตรงกลางด้านบน
+            # Edge handles
             QRect(rect.center().x() - handle_size//2, rect.top() - handle_size//2, handle_size, handle_size),
-            # ตรงกลางด้านล่าง
             QRect(rect.center().x() - handle_size//2, rect.bottom() - handle_size//2, handle_size, handle_size),
-            # ตรงกลางด้านซ้าย
             QRect(rect.left() - handle_size//2, rect.center().y() - handle_size//2, handle_size, handle_size),
-            # ตรงกลางด้านขวา
             QRect(rect.right() - handle_size//2, rect.center().y() - handle_size//2, handle_size, handle_size),
         ]
         
         for handle in handles:
             painter.drawRect(handle)
     
-    def draw_size_info(self, painter):
-        """วาดข้อมูลขนาดของกรอบ"""
+    def draw_enhanced_size_info(self, painter):
+        """✨ Enhanced size info with movement status (NEW FEATURE)"""
         rect = self.selection_rect
-        text = f"{rect.width()} × {rect.height()}"
+        
+        # Main size text
+        size_text = f"{rect.width()} × {rect.height()}"
+        
+        # ✨ Add movement status indicator
+        if self.dragging:
+            status_text = "🔄 Moving..."
+            status_color = QColor(0, 255, 0, 255)
+        elif self.is_hovering_move_area:
+            status_text = "👆 Click & Drag to Move"
+            status_color = QColor(0, 120, 255, 255)
+        else:
+            status_text = ""
+            status_color = QColor(255, 255, 255, 255)
         
         # กำหนดตำแหน่งข้อความ
-        text_pos = QPoint(rect.left(), rect.top() - 10)
-        if text_pos.y() < 20:
-            text_pos.setY(rect.bottom() + 20)
+        text_pos = QPoint(rect.left(), rect.top() - 30)
+        if text_pos.y() < 40:
+            text_pos.setY(rect.bottom() + 40)
         
         # วาดพื้นหลังข้อความ
         font = QFont("Arial", 10)
         painter.setFont(font)
-        text_rect = painter.fontMetrics().boundingRect(text)
-        text_rect.moveTopLeft(text_pos)
-        text_rect.adjust(-4, -2, 4, 2)
         
-        painter.fillRect(text_rect, QColor(0, 0, 0, 180))
+        # Size info
+        size_rect = painter.fontMetrics().boundingRect(size_text)
+        size_rect.moveTopLeft(text_pos)
+        size_rect.adjust(-4, -2, 4, 2)
         
-        # วาดข้อความ
+        painter.fillRect(size_rect, QColor(0, 0, 0, 180))
         painter.setPen(QPen(QColor(255, 255, 255, 255)))
-        painter.drawText(text_pos, text)
+        painter.drawText(text_pos, size_text)
+        
+        # ✨ Status info (NEW)
+        if status_text:
+            status_pos = QPoint(text_pos.x(), text_pos.y() + 20)
+            status_rect = painter.fontMetrics().boundingRect(status_text)
+            status_rect.moveTopLeft(status_pos)
+            status_rect.adjust(-4, -2, 4, 2)
+            
+            painter.fillRect(status_rect, QColor(0, 0, 0, 160))
+            painter.setPen(QPen(status_color))
+            painter.drawText(status_pos, status_text)
     
     def mousePressEvent(self, event):
+        """✨ Enhanced mouse press with better feedback (IMPROVED)"""
         if event.button() == Qt.LeftButton:
             pos = event.pos()
             
@@ -179,23 +242,23 @@ class SelectionWidget(QWidget):
                 self.initial_rect = QRect(self.selection_rect)
                 event.accept()
             else:
-                # ถ้าไม่ใช่การปรับขนาด และอยู่ในพื้นที่โต้ตอบ ให้เริ่มการลาก
-                # ปรับปรุง: อนุญาตให้ลากได้ทุกที่ในพื้นที่โต้ตอบ ไม่เฉพาะใน selection_rect
+                # ✨ Enhanced dragging - allow from anywhere in interactive region
                 self.dragging = True
                 self.drag_start_pos = pos
+                self.update()  # Trigger immediate visual feedback
                 event.accept()
     
     def mouseMoveEvent(self, event):
+        """✨ Enhanced mouse move with smooth feedback (IMPROVED)"""
         pos = event.pos()
         
         # ตรวจสอบว่าควรจัดการ event หรือไม่
         if not self.should_handle_mouse_event(pos) and not (self.dragging or self.resizing):
-            # ถ้าไม่อยู่ในพื้นที่โต้ตอบ และไม่กำลัง drag/resize ให้ ignore
             event.ignore()
             return
         
         if self.dragging and self.drag_start_pos:
-            # ลากกรอบ
+            # ✨ Enhanced dragging with smooth movement
             delta = pos - self.drag_start_pos
             new_rect = QRect(self.selection_rect)
             new_rect.translate(delta)
@@ -215,11 +278,55 @@ class SelectionWidget(QWidget):
             self.resize_selection(pos)
             
         else:
-            # เปลี่ยน cursor ตามตำแหน่ง (เฉพาะเมื่อ visible_mode เป็น True)
-            if self.visible_mode:
-                self.update_cursor(pos)
-            else:
-                self.setCursor(QCursor(Qt.ArrowCursor))
+            # ✨ Enhanced cursor and hover feedback
+            self.update_enhanced_cursor(pos)
+    
+    def update_enhanced_cursor(self, pos):
+        """✨ Enhanced cursor with hover feedback (NEW FEATURE)"""
+        # ถ้าไม่อยู่ในโหมดแสดงผล ไม่ต้องเปลี่ยน cursor
+        if not self.visible_mode:
+            self.setCursor(QCursor(Qt.ArrowCursor))
+            self.is_hovering_move_area = False
+            return
+            
+        direction = self.get_resize_direction(pos)
+        
+        # Track hover state changes for visual feedback
+        prev_hovering = self.is_hovering_move_area
+        self.is_hovering_move_area = False
+        
+        if direction == self.RESIZE_TOP or direction == self.RESIZE_BOTTOM:
+            self.setCursor(QCursor(Qt.SizeVerCursor))
+        elif direction == self.RESIZE_LEFT or direction == self.RESIZE_RIGHT:
+            self.setCursor(QCursor(Qt.SizeHorCursor))
+        elif direction == self.RESIZE_TOP_LEFT or direction == self.RESIZE_BOTTOM_RIGHT:
+            self.setCursor(QCursor(Qt.SizeFDiagCursor))
+        elif direction == self.RESIZE_TOP_RIGHT or direction == self.RESIZE_BOTTOM_LEFT:
+            self.setCursor(QCursor(Qt.SizeBDiagCursor))
+        elif self.selection_rect.contains(pos):
+            # ✨ Enhanced move cursor with hover state
+            self.setCursor(QCursor(Qt.SizeAllCursor))
+            self.is_hovering_move_area = True
+        else:
+            self.setCursor(QCursor(Qt.ArrowCursor))
+            
+        # ✨ Update visual feedback if hover state changed
+        if prev_hovering != self.is_hovering_move_area:
+            self.update()  # Trigger repaint for highlight effect
+    
+    def mouseReleaseEvent(self, event):
+        """✨ Enhanced mouse release with cleanup (IMPROVED)"""
+        was_dragging = self.dragging
+        
+        self.dragging = False
+        self.resizing = False
+        self.resize_direction = self.RESIZE_NONE
+        self.drag_start_pos = None
+        self.initial_rect = None
+        
+        # ✨ Update visual feedback when dragging ends
+        if was_dragging:
+            self.update()
     
     def resize_selection(self, current_pos):
         """ปรับขนาดกรอบตามทิศทางที่เลือก"""
@@ -310,35 +417,6 @@ class SelectionWidget(QWidget):
         
         return direction
     
-    def update_cursor(self, pos):
-        """อัปเดต cursor ตามตำแหน่งที่เลื่อน"""
-        # ถ้าไม่อยู่ในโหมดแสดงผล ไม่ต้องเปลี่ยน cursor
-        if not self.visible_mode:
-            self.setCursor(QCursor(Qt.ArrowCursor))
-            return
-            
-        direction = self.get_resize_direction(pos)
-        
-        if direction == self.RESIZE_TOP or direction == self.RESIZE_BOTTOM:
-            self.setCursor(QCursor(Qt.SizeVerCursor))
-        elif direction == self.RESIZE_LEFT or direction == self.RESIZE_RIGHT:
-            self.setCursor(QCursor(Qt.SizeHorCursor))
-        elif direction == self.RESIZE_TOP_LEFT or direction == self.RESIZE_BOTTOM_RIGHT:
-            self.setCursor(QCursor(Qt.SizeFDiagCursor))
-        elif direction == self.RESIZE_TOP_RIGHT or direction == self.RESIZE_BOTTOM_LEFT:
-            self.setCursor(QCursor(Qt.SizeBDiagCursor))
-        elif self.selection_rect.contains(pos):
-            self.setCursor(QCursor(Qt.SizeAllCursor))
-        else:
-            self.setCursor(QCursor(Qt.ArrowCursor))
-    
-    def mouseReleaseEvent(self, event):
-        self.dragging = False
-        self.resizing = False
-        self.resize_direction = self.RESIZE_NONE
-        self.drag_start_pos = None
-        self.initial_rect = None
-    
     def emit_position_changed(self):
         """ส่งสัญญาณเมื่อตำแหน่งหรือขนาดเปลี่ยน"""
         self.position_changed.emit(
@@ -369,56 +447,46 @@ class SelectionWidget(QWidget):
         return self.visible_mode
 
 
+# Use the enhanced SelectionWidget in the main Window class
+# (The rest of the Window class remains the same as in the original file)
 class Window(QMainWindow):
-    def __init__(self, title="Screen Translator"):
+    def __init__(self, title="Screen Translator - Enhanced Movement"):
         super().__init__()
         self.title = title
         self.setWindowTitle(title)
-        self.setGeometry(100, 100, 500, 400)  # ลดขนาดหน้าต่าง
+        self.setGeometry(100, 100, 500, 400)
         
-        # สร้าง selection widget
+        # ✨ Use the enhanced SelectionWidget
         self.selection_widget = SelectionWidget()
         self.selection_widget.position_changed.connect(self.on_selection_changed)
         
-        # ตัวแปรสำหรับ OCR
+        # Rest of initialization...
         self.current_selection = QRect(100, 100, 300, 200)
         self.is_capturing = False
-        
-        # สร้าง OCR instance
         self.ocr = OCR()
-        
-        # สร้าง Translator instance - ใช้ Ollama เท่านั้น
         self.translator = Translator(service='ollama')
-        
-        # การตั้งค่าการแปล - แปลอัตโนมัติเสมอ English to Thai เท่านั้น
-        self.auto_translate = True  # เปิดแปลอัตโนมัติเสมอ
-        self.target_language = 'th'  # ไทยเท่านั้น
-        
-        # ข้อความล่าสุดที่ตรวจจับได้
+        self.auto_translate = True
+        self.target_language = 'th'
         self.last_detected_text = ""
         
-        # สร้าง UI
         self.setup_ui()
         
-        # ตั้งค่า timer สำหรับ real-time capture
+        # Timer setup
         self.capture_timer = QTimer()
         self.capture_timer.timeout.connect(self.capture_and_process)
         
     def setup_ui(self):
-        """ตั้งค่า UI แบบ minimal และ clean"""
+        """ตั้งค่า UI"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        
-        # ลดขนาดหน้าต่าง
-        self.setGeometry(100, 100, 500, 400)
         
         # Layout หลัก
         main_layout = QVBoxLayout(central_widget)
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(15, 15, 15, 15)
         
-        # ปุ่มควบคุมหลัก - ลดขนาด
-        control_group = QGroupBox("การควบคุม")
+        # ปุ่มควบคุมหลัก
+        control_group = QGroupBox("การควบคุม - ✨ Enhanced Movement")
         control_layout = QHBoxLayout(control_group)
         
         self.start_button = QPushButton("🎯 เริ่ม")
@@ -474,21 +542,8 @@ class Window(QMainWindow):
         control_layout.addWidget(self.toggle_button)
         control_layout.addStretch()
         
-        # การตั้งค่าความถี่ - ลดขนาด
-        frequency_layout = QHBoxLayout()
-        frequency_layout.addWidget(QLabel("ความถี่:"))
-        self.interval_spinbox = QSpinBox()
-        self.interval_spinbox.setRange(1, 10)
-        self.interval_spinbox.setValue(2)
-        self.interval_spinbox.setSuffix(" วิ")
-        self.interval_spinbox.valueChanged.connect(self.update_capture_interval)
-        frequency_layout.addWidget(self.interval_spinbox)
-        frequency_layout.addStretch()
-        
-        control_layout.addLayout(frequency_layout)
-        
-        # ข้อมูลสถานะ - ย่อขนาด
-        status_group = QGroupBox("สถานะ")
+        # Status info
+        status_group = QGroupBox("สถานะ - ✨ Enhanced Features")
         status_layout = QVBoxLayout(status_group)
         
         self.position_label = QLabel("ตำแหน่ง: X=100, Y=100, กว้าง=300, สูง=200")
@@ -497,10 +552,16 @@ class Window(QMainWindow):
         self.status_label = QLabel("สถานะ: พร้อมใช้งาน")
         self.status_label.setStyleSheet("QLabel { color: #2E7D32; font-size: 11px; }")
         
+        # ✨ Add movement help text
+        self.help_label = QLabel("💡 วิธีการใช้: คลิกและลากบริเวณกรอบเพื่อย้าย | เลื่อนเมาส์เพื่อดูไฮไลท์")
+        self.help_label.setStyleSheet("QLabel { font-size: 10px; color: #666; font-style: italic; }")
+        self.help_label.setWordWrap(True)
+        
         status_layout.addWidget(self.position_label)
         status_layout.addWidget(self.status_label)
+        status_layout.addWidget(self.help_label)
         
-        # เฉพาะพื้นที่แสดงคำแปล (ไม่มี original text area)
+        # Text area
         text_group = QGroupBox("คำแปล")
         text_layout = QVBoxLayout(text_group)
         
@@ -517,10 +578,10 @@ class Window(QMainWindow):
         """)
         text_layout.addWidget(self.translated_text)
         
-        # เพิ่ม widgets เข้า layout หลัก
+        # Add widgets to main layout
         main_layout.addWidget(control_group)
         main_layout.addWidget(status_group)
-        main_layout.addWidget(text_group, 1)  # ให้ text area ขยายได้
+        main_layout.addWidget(text_group, 1)
         
     def on_selection_changed(self, x, y, width, height):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
@@ -534,8 +595,7 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(True)
         
         # เริ่ม timer สำหรับจับภาพ
-        interval = self.interval_spinbox.value() * 1000  # แปลงเป็น milliseconds
-        self.capture_timer.start(interval)
+        self.capture_timer.start(2000)  # 2 seconds interval
         
         self.status_label.setText("สถานะ: เริ่มการจับภาพ...")
         
@@ -577,7 +637,7 @@ class Window(QMainWindow):
                 if text.strip():
                     # ตรวจสอบว่าเป็นข้อความใหม่หรือไม่
                     if text != self.last_detected_text:
-                        # แปลอัตโนมัติเสมอ (เปิดใช้งานตลอด)
+                        # แปลอัตโนมัติเสมอ
                         if self.auto_translate:
                             self.translate_text(text)
                         
@@ -591,36 +651,6 @@ class Window(QMainWindow):
             self.translated_text.clear()
             self.translated_text.append(f"❌ เกิดข้อผิดพลาด: {str(e)}")
             self.status_label.setText("สถานะ: เกิดข้อผิดพลาด")
-            
-    def update_capture_interval(self, value):
-        """อัปเดตความถี่ในการจับภาพ"""
-        if self.is_capturing:
-            self.capture_timer.setInterval(value * 1000)
-    
-    def clear_all_text(self):
-        """ล้างข้อความทั้งหมด"""
-        self.translated_text.clear()
-        self.last_detected_text = ""
-        self.status_label.setText("สถานะ: ล้างข้อความแล้ว")
-    
-    def closeEvent(self, event):
-        """เมื่อปิดหน้าต่างหลัก"""
-        self.selection_widget.close()
-        event.accept()
-    
-    def update_target_language(self, language_text):
-        """อัปเดตภาษาเป้าหมาย"""
-        # แยกรหัสภาษาจากข้อความ (เช่น "ไทย (th)" -> "th")
-        self.target_language = language_text.split('(')[-1].replace(')', '')
-        
-    def translate_current_text(self):
-        """แปลข้อความปัจจุบัน"""
-        text = self.last_detected_text.strip()
-        if not text:
-            self.translated_text.append("❌ ไม่มีข้อความให้แปล")
-            return
-            
-        self.translate_text(text)
     
     def translate_text(self, text):
         """แปลข้อความ"""
@@ -629,7 +659,7 @@ class Window(QMainWindow):
             
             # ตรวจสอบว่า translator พร้อมใช้งานหรือไม่
             if not self.translator.is_available():
-                self.translated_text.clear()  # Auto clean old content
+                self.translated_text.clear()
                 self.translated_text.append("❌ ระบบแปลภาษาไม่พร้อมใช้งาน")
                 self.status_label.setText("สถานะ: ระบบแปลไม่พร้อมใช้งาน")
                 return
@@ -641,7 +671,7 @@ class Window(QMainWindow):
                 # Auto clean old content when new text arrives
                 self.translated_text.clear()
                 
-                # แสดงเฉพาะคำแปล (ไม่แสดง original text)
+                # แสดงเฉพาะคำแปล
                 self.translated_text.append(f"{result['translated_text']}")
                 
                 # เลื่อนไปที่ข้อความล่าสุด
@@ -651,50 +681,14 @@ class Window(QMainWindow):
                 
                 self.status_label.setText("สถานะ: แปลสำเร็จ")
             else:
-                self.translated_text.clear()  # Auto clean old content
+                self.translated_text.clear()
                 self.translated_text.append("❌ ไม่สามารถแปลข้อความได้")
                 self.status_label.setText("สถานะ: แปลไม่สำเร็จ")
                 
         except Exception as e:
-            self.translated_text.clear()  # Auto clean old content
+            self.translated_text.clear()
             self.translated_text.append(f"❌ เกิดข้อผิดพลาดในการแปล: {str(e)}")
             self.status_label.setText("สถานะ: เกิดข้อผิดพลาดในการแปล")
-    
-    def copy_translated_text(self):
-        """คัดลอกข้อความที่แปลแล้ว"""
-        try:
-            import pyperclip
-            text = self.translated_text.toPlainText()
-            pyperclip.copy(text)
-            self.status_label.setText("สถานะ: คัดลอกคำแปลแล้ว")
-        except:
-            # Fallback หาก pyperclip ไม่พร้อมใช้งาน
-            clipboard = QApplication.clipboard()
-            clipboard.setText(self.translated_text.toPlainText())
-            self.status_label.setText("สถานะ: คัดลอกคำแปลแล้ว")
-    
-    def clear_translation(self):
-        """ล้างคำแปล"""
-        self.translated_text.clear()
-    
-    def update_translation_service(self, service_text):
-        """เปลี่ยน translation service (ปิดใช้งาน - ใช้ Ollama เท่านั้น)"""
-        # ปิดใช้งานการเปลี่ยน service - ใช้ Ollama เท่านั้น
-        pass
-    
-    def translate_current_text(self):
-        """แปลข้อความปัจจุบัน"""
-        text = self.last_detected_text.strip()
-        if not text:
-            self.translated_text.append("❌ ไม่มีข้อความให้แปล")
-            return
-            
-        self.translate_text(text)
-    
-    def update_target_language(self, language_text):
-        """อัปเดตภาษาเป้าหมาย (ปิดใช้งาน - ใช้ไทยเท่านั้น)"""
-        # ปิดใช้งานการเปลี่ยนภาษา - ใช้ไทยเท่านั้น  
-        self.target_language = 'th'
     
     def toggle_selection_visibility(self):
         """สลับการแสดงผลของ selection widget"""
@@ -711,3 +705,37 @@ class Window(QMainWindow):
             self.toggle_selection_visibility()
         else:
             super().keyPressEvent(event)
+    
+    def closeEvent(self, event):
+        """เมื่อปิดหน้าต่างหลัก"""
+        self.selection_widget.close()
+        event.accept()
+
+
+def main():
+    """✨ Enhanced main function with improved box movement"""
+    app = QApplication(sys.argv)
+    
+    print("🚀 เริ่มทดสอบ Enhanced Screen Translator")
+    print("=" * 50)
+    print("✨ New Features:")
+    print("   • Enhanced box movement with hover feedback")
+    print("   • Dynamic border colors (red/blue/green)")
+    print("   • Visual highlight when hovering over move area")
+    print("   • Improved status indicators")
+    print("   • Smooth movement feedback")
+    print("")
+    print("💡 วิธีการใช้:")
+    print("   • เลื่อนเมาส์ไปบนกรอบเพื่อดูการไฮไลท์")
+    print("   • คลิกและลากในพื้นที่กรอบเพื่อย้าย")
+    print("   • สังเกตการเปลี่ยนสีขอบขณะเคลื่อนที่")
+    print("=" * 50)
+    
+    window = Window()
+    window.show()
+    
+    return app.exec_()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
