@@ -20,7 +20,8 @@ UI_CONFIG = {
     'default_selection_size': (300, 200),
     'min_selection_size': (50, 50),
     'selection_color': (255, 0, 0),  # สีแดง
-    'background_opacity': 50
+    'background_opacity': 25,  # ลดความเข้มของพื้นหลัง
+    'selection_background': (255, 255, 255, 25)  # สีขาวโปร่งใสอ่อน
 }
 
 # การตั้งค่าการจับภาพ
