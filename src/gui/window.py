@@ -168,22 +168,22 @@ class SelectionWidget(QWidget):
                 event.ignore()
                 return
             
-            # เฉพาะในกรอบเลือกพื้นที่หรือขอบปรับขนาดเท่านั้นที่จะจับเหตุการณ์
+            # ตรวจสอบว่าเป็นการปรับขนาดหรือไม่
             resize_direction = self.get_resize_direction(pos)
             
             if resize_direction != self.RESIZE_NONE:
+                # เริ่มการปรับขนาด
                 self.resizing = True
                 self.resize_direction = resize_direction
                 self.drag_start_pos = pos
                 self.initial_rect = QRect(self.selection_rect)
                 event.accept()
-            elif self.selection_rect.contains(pos):
+            else:
+                # ถ้าไม่ใช่การปรับขนาด และอยู่ในพื้นที่โต้ตอบ ให้เริ่มการลาก
+                # ปรับปรุง: อนุญาตให้ลากได้ทุกที่ในพื้นที่โต้ตอบ ไม่เฉพาะใน selection_rect
                 self.dragging = True
                 self.drag_start_pos = pos
                 event.accept()
-            else:
-                # ถ้าไม่ได้คลิกในกรอบ ให้ event ผ่านไปยัง application ข้างล่าง
-                event.ignore()
     
     def mouseMoveEvent(self, event):
         pos = event.pos()
