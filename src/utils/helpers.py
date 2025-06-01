@@ -219,8 +219,13 @@ def get_system_info():
     }
     
     return info
-    return Image.open(path)
 
-def extract_text_from_image(image):
-    import pytesseract
-    return pytesseract.image_to_string(image)
+def extract_text_from_image(image, engine='tesseract'):
+    """Helper สำหรับสกัดข้อความจากภาพด้วย engine ที่เลือก"""
+    if engine == 'ollama_vision':
+        from translation.ocr import OCR
+        ocr = OCR(engine='ollama_vision')
+        return ocr.extract_text(image)
+    else:
+        import pytesseract
+        return pytesseract.image_to_string(image)

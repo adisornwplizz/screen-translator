@@ -3,7 +3,7 @@
 # การตั้งค่า OCR
 OCR_CONFIG = {
     'tesseract_cmd': r'C:\Program Files\Tesseract-OCR\tesseract.exe',  # เปลี่ยนตามที่ติดตั้ง
-    'language': 'tha+eng',  # ภาษาไทยและอังกฤษ
+    'language': 'eng',  # ภาษาไทยและอังกฤษ
     'config': '--psm 6'  # Page Segmentation Mode
 }
 

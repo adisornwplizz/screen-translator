@@ -6,18 +6,26 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import OCR_CONFIG, CAPTURE_CONFIG
+import base64
+import requests
+from io import BytesIO
+from .ollama_translator import OllamaTranslator
 
 
 class OCR:
-    def __init__(self):
-        """เริ่มต้น OCR engine"""
+    def __init__(self, engine='tesseract'):
+        """เริ่มต้น OCR engine
+        engine: 'tesseract' หรือ 'ollama_vision' (AI Vision)
+        """
+        self.engine = engine
         try:
-            # ตั้งค่า tesseract path
-            if os.path.exists(OCR_CONFIG['tesseract_cmd']):
-                pytesseract.pytesseract.tesseract_cmd = OCR_CONFIG['tesseract_cmd']
-            else:
-                print("⚠️  Tesseract ไม่พบในตำแหน่งที่กำหนด กรุณาติดตั้ง Tesseract-OCR")
-                
+            if self.engine == 'tesseract':
+                if os.path.exists(OCR_CONFIG['tesseract_cmd']):
+                    pytesseract.pytesseract.tesseract_cmd = OCR_CONFIG['tesseract_cmd']
+                else:
+                    print("⚠️  Tesseract ไม่พบในตำแหน่งที่กำหนด กรุณาติดตั้ง Tesseract-OCR")
+            elif self.engine == 'ollama_vision':
+                self.ollama = OllamaTranslator(model='gemma3:4b')
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการตั้งค่า OCR: {e}")
 
@@ -94,15 +102,39 @@ class OCR:
             print(f"❌ เกิดข้อผิดพลาดในการประมวลผลภาพ: {e}")
             return image
 
+    def extract_text_ollama_vision(self, image):
+        """ใช้ Ollama Vision (gemma3:4b) อ่านข้อความจากภาพ"""
+        try:
+            # แปลงภาพเป็น base64
+            buffered = BytesIO()
+            image.save(buffered, format="PNG")
+            img_b64 = base64.b64encode(buffered.getvalue()).decode()
+            prompt = "Read all text in this image. Return only the text, no explanation."
+            payload = {
+                "model": "gemma3:4b",
+                "prompt": prompt,
+                "images": [img_b64],
+                "stream": False,
+                "options": {"temperature": 0.1, "max_tokens": 1024}
+            }
+            url = f"http://localhost:11434/api/generate"
+            response = requests.post(url, json=payload, timeout=60)
+            if response.status_code == 200:
+                result = response.json()
+                text = result.get('response', '').strip()
+                return text
+            else:
+                print(f"❌ Ollama Vision error: {response.text}")
+                return ""
+        except Exception as e:
+            print(f"❌ Ollama Vision OCR error: {e}")
+            return ""
+
     def extract_text(self, image):
-        """สกัดข้อความจากภาพ
+        """สกัดข้อความจากภาพด้วย engine ที่เลือก"""
+        if self.engine == 'ollama_vision':
+            return self.extract_text_ollama_vision(image)
         
-        Args:
-            image (PIL.Image): ภาพที่จะสกัดข้อความ
-            
-        Returns:
-            str: ข้อความที่สกัดได้
-        """
         try:
             if image is None:
                 return ""
@@ -124,14 +156,13 @@ class OCR:
             return ""
 
     def get_text_with_confidence(self, image):
-        """สกัดข้อความพร้อมค่าความมั่นใจ
+        """สกัดข้อความพร้อมค่าความมั่นใจ (รองรับ AI Vision)"""
+        if self.engine == 'ollama_vision':
+            text = self.extract_text_ollama_vision(image)
+            # AI Vision ไม่มี confidence score ที่แท้จริง ให้คืน 0.9 ถ้ามีข้อความ, 0 ถ้าไม่มี
+            conf = 0.9 if text.strip() else 0.0
+            return text, conf
         
-        Args:
-            image (PIL.Image): ภาพที่จะสกัดข้อความ
-            
-        Returns:
-            tuple: (text, confidence)
-        """
         try:
             if image is None:
                 return "", 0

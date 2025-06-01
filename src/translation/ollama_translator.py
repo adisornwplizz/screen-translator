@@ -12,9 +12,9 @@ import hashlib
 
 
 class OllamaTranslator:
-    """Translator ที่ใช้ Ollama API กับ Gemma 3:4b model"""
+    """Translator ที่ใช้ Ollama API กับ Llama3.2:3b model"""
     
-    def __init__(self, host: str = "localhost", port: int = 11434, model: str = "gemma3:4b"):
+    def __init__(self, host: str = "localhost", port: int = 11434, model: str = "llama3.2:3b"):
         """
         เริ่มต้น Ollama Translator
         
@@ -377,7 +377,7 @@ Thai translation:"""
 
 if __name__ == "__main__":
     # ทดสอบ Ollama Translator
-    translator = OllamaTranslator()
+    translator = OllamaTranslator(model="llama3.2:3b")
     
     if translator.is_available():
         translator.test_translation()
@@ -385,5 +385,5 @@ if __name__ == "__main__":
         print("❌ Ollama ไม่พร้อมใช้งาน กรุณาตรวจสอบ:")
         print("   1. Ollama กำลังทำงาน")
         print("   2. Ollama ทำงานบน port 11434")
-        print("   3. Model gemma3:4b ได้ถูก pull แล้ว")
-        print("   4. สั่งรัน: ollama pull gemma3:4b")
+        print("   3. Model llama3.2:3b ได้ถูก pull แล้ว")
+        print("   4. สั่งรัน: ollama pull llama3.2:3b")

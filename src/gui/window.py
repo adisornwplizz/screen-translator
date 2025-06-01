@@ -463,7 +463,7 @@ class Window(QMainWindow):
         # Rest of initialization...
         self.current_selection = QRect(100, 100, 300, 200)
         self.is_capturing = False
-        self.ocr = OCR()
+        self.ocr = OCR(engine='ollama_vision')
         self.translator = Translator(service='ollama')
         self.auto_translate = True
         self.target_language = 'th'
