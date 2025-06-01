@@ -3,7 +3,8 @@ import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QTextEdit, QLabel, 
                             QFrame, QSplitter, QGroupBox, QProgressBar,
-                            QCheckBox, QSpinBox, QSlider)
+                            QCheckBox, QSpinBox, QSlider, QTableWidget, 
+                            QTableWidgetItem, QHeaderView)
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal, QThread, pyqtSlot, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QCursor
 import pyautogui
@@ -16,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from translation.ocr import OCR
 from translation.translator import Translator
 from config import UI_CONFIG
+from utils.vocabulary import extract_vocabulary_from_text
 
 
 class SelectionWidget(QWidget):
@@ -600,6 +602,62 @@ class Window(QMainWindow):
         """)
         text_layout.addWidget(self.translated_text)
         
+        # ✨ เพิ่มตารางคำศัพท์ (Vocabulary Table)
+        vocab_label = QLabel("📚 ตารางคำศัพท์")
+        vocab_label.setStyleSheet("QLabel { font-weight: bold; font-size: 13px; color: #2E7D32; margin-top: 10px; }")
+        text_layout.addWidget(vocab_label)
+        
+        self.vocabulary_table = QTableWidget()
+        self.vocabulary_table.setColumnCount(2)
+        self.vocabulary_table.setHorizontalHeaderLabels(["Vocabulary", "Meaning"])
+        
+        # ตั้งค่าขนาดตาราง
+        self.vocabulary_table.setMaximumHeight(200)  # จำกัดความสูง
+        self.vocabulary_table.setMinimumHeight(120)  # ความสูงขั้นต่ำ
+        
+        # ตั้งค่าการแสดงผล
+        self.vocabulary_table.horizontalHeader().setStretchLastSection(True)
+        self.vocabulary_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)
+        self.vocabulary_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.vocabulary_table.setColumnWidth(0, 150)  # ความกว้างคอลัมน์ Vocabulary
+        
+        # ตั้งค่าสไตล์ตาราง
+        self.vocabulary_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #E0E0E0;
+                border-radius: 6px;
+                background-color: #FAFAFA;
+                gridline-color: #E8E8E8;
+                selection-background-color: #E3F2FD;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #E3F2FD;
+                color: #1976D2;
+            }
+            QHeaderView::section {
+                background-color: #F5F5F5;
+                padding: 8px;
+                border: none;
+                border-bottom: 1px solid #E0E0E0;
+                font-weight: bold;
+                color: #424242;
+            }
+        """)
+        
+        # ตั้งค่าพฤติกรรมตาราง
+        self.vocabulary_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.vocabulary_table.setAlternatingRowColors(True)
+        self.vocabulary_table.setShowGrid(True)
+        
+        # เพิ่มข้อความ placeholder เมื่อไม่มีข้อมูล
+        self.vocabulary_table.setPlaceholderText("ยังไม่มีคำศัพท์ กรุณาเริ่มการจับภาพ...")
+        
+        text_layout.addWidget(self.vocabulary_table)
+        
         # Add widgets to main layout
         main_layout.addWidget(control_group)
         main_layout.addWidget(interval_group)
@@ -713,6 +771,9 @@ class Window(QMainWindow):
                     self.translated_text.verticalScrollBar().maximum()
                 )
                 
+                # ✨ อัปเดตตารางคำศัพท์
+                self.update_vocabulary_table(text, result.get('detected_language', 'auto'))
+                
                 self.status_label.setText("สถานะ: แปลสำเร็จ")
             else:
                 self.translated_text.clear()
@@ -723,6 +784,73 @@ class Window(QMainWindow):
             self.translated_text.clear()
             self.translated_text.append(f"❌ เกิดข้อผิดพลาดในการแปล: {str(e)}")
             self.status_label.setText("สถานะ: เกิดข้อผิดพลาดในการแปล")
+    
+    def update_vocabulary_table(self, source_text, detected_language='auto'):
+        """✨ อัปเดตตารางคำศัพท์"""
+        try:
+            # สกัดคำศัพท์จากข้อความต้นฉบับ
+            vocabulary_list = extract_vocabulary_from_text(source_text, detected_language, max_count=8)
+            
+            # ล้างข้อมูลเก่า
+            self.vocabulary_table.setRowCount(0)
+            
+            if not vocabulary_list:
+                # ถ้าไม่มีคำศัพท์ ให้แสดงข้อความแจ้ง
+                self.vocabulary_table.setRowCount(1)
+                no_vocab_item = QTableWidgetItem("ไม่พบคำศัพท์ที่เหมาะสม")
+                no_vocab_item.setStyleSheet("color: #999; font-style: italic;")
+                empty_meaning = QTableWidgetItem("-")
+                empty_meaning.setStyleSheet("color: #999; font-style: italic;")
+                self.vocabulary_table.setItem(0, 0, no_vocab_item)
+                self.vocabulary_table.setItem(0, 1, empty_meaning)
+                return
+            
+            # เพิ่มแถวตามจำนวนคำศัพท์
+            self.vocabulary_table.setRowCount(len(vocabulary_list))
+            
+            # แปลคำศัพท์แต่ละคำและใส่ในตาราง
+            for i, vocab_word in enumerate(vocabulary_list):
+                try:
+                    # ใส่คำศัพท์ในคอลัมน์แรก
+                    vocab_item = QTableWidgetItem(vocab_word)
+                    vocab_item.setStyleSheet("font-weight: 500; color: #333;")
+                    self.vocabulary_table.setItem(i, 0, vocab_item)
+                    
+                    # แปลคำศัพท์เดี่ยว
+                    if self.translator.is_available():
+                        meaning_result = self.translator.translate(vocab_word, self.target_language)
+                        meaning = meaning_result.get('translated_text', 'ไม่สามารถแปลได้')
+                        
+                        # ถ้าคำแปลเหมือนคำต้นฉบับ ให้แสดงว่าไม่จำเป็นต้องแปล
+                        if meaning.lower() == vocab_word.lower():
+                            meaning = f"({vocab_word})"
+                            
+                    else:
+                        meaning = "ระบบแปลไม่พร้อมใช้งาน"
+                    
+                    # ใส่ความหมายในคอลัมน์ที่สอง
+                    meaning_item = QTableWidgetItem(meaning)
+                    meaning_item.setStyleSheet("color: #555;")
+                    self.vocabulary_table.setItem(i, 1, meaning_item)
+                    
+                except Exception as vocab_error:
+                    # ถ้าแปลคำใดไม่ได้ ให้ใส่ข้อความแสดงข้อผิดพลาด
+                    error_item = QTableWidgetItem("ข้อผิดพลาด")
+                    error_item.setStyleSheet("color: #f44336; font-style: italic;")
+                    self.vocabulary_table.setItem(i, 1, error_item)
+            
+            # ปรับขนาดแถวให้เหมาะสม
+            self.vocabulary_table.resizeRowsToContents()
+            
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการอัปเดตตารางคำศัพท์: {e}")
+            # ใส่ข้อความแสดงข้อผิดพลาดในตาราง
+            self.vocabulary_table.setRowCount(1)
+            error_item = QTableWidgetItem("เกิดข้อผิดพลาดในการโหลดคำศัพท์")
+            error_item.setStyleSheet("color: #f44336; font-style: italic;")
+            self.vocabulary_table.setItem(0, 0, error_item)
+            empty_meaning = QTableWidgetItem("")
+            self.vocabulary_table.setItem(0, 1, empty_meaning)
     
     def toggle_selection_visibility(self):
         """สลับการแสดงผลของ selection widget"""
