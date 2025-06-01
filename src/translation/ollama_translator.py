@@ -8,6 +8,7 @@ import json
 import time
 import re
 from typing import Dict, List, Optional
+import hashlib
 
 
 class OllamaTranslator:
@@ -31,6 +32,10 @@ class OllamaTranslator:
         
         # กำหนด timeout
         self.timeout = 30
+        
+        # Translation cache เพื่อหลีกเลี่ยงการแปลข้อความซ้ำ
+        self.translation_cache = {}
+        self.cache_max_size = 100
         
         # ตรวจสอบการเชื่อมต่อ
         self.is_connected = self._test_connection()
@@ -59,6 +64,33 @@ class OllamaTranslator:
             print(f"❌ ข้อผิดพลาดในการทดสอบการเชื่อมต่อ: {e}")
             return False
 
+    def _get_cache_key(self, text: str, target_language: str) -> str:
+        """สร้าง key สำหรับ cache"""
+        content = f"{text.strip().lower()}_{target_language}"
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
+    
+    def _get_from_cache(self, text: str, target_language: str) -> Optional[Dict]:
+        """ดึงผลลัพธ์จาก cache"""
+        cache_key = self._get_cache_key(text, target_language)
+        if cache_key in self.translation_cache:
+            cached_result = self.translation_cache[cache_key].copy()
+            cached_result['from_cache'] = True
+            print(f"📋 ใช้ผลลัพธ์จาก cache สำหรับ: {text[:50]}...")
+            return cached_result
+        return None
+    
+    def _save_to_cache(self, text: str, target_language: str, result: Dict):
+        """บันทึกผลลัพธ์ลง cache"""
+        if len(self.translation_cache) >= self.cache_max_size:
+            # ลบรายการแรกออกเมื่อ cache เต็ม
+            oldest_key = next(iter(self.translation_cache))
+            del self.translation_cache[oldest_key]
+        
+        cache_key = self._get_cache_key(text, target_language)
+        # ไม่บันทึก error results
+        if 'error' not in result:
+            self.translation_cache[cache_key] = result.copy()
+
     def _detect_language(self, text: str) -> str:
         """ตรวจจับภาษาอย่างง่าย"""
         # ตรวจจับอักขระไทย
@@ -74,25 +106,34 @@ class OllamaTranslator:
         return 'unknown'
 
     def _create_prompt(self, text: str) -> str:
-        """สร้าง prompt สำหรับ Ollama - ปรับปรุงให้เข้าใจก่อนแล้วค่อยสรุป"""
-        prompt = f"""You are a professional English to Thai translator. Follow these steps:
+        """สร้าง prompt สำหรับ Ollama - ปรับปรุงสำหรับการแปลเกมและ UI"""
+        prompt = f"""You are a professional English to Thai translator specializing in game content and user interface elements. Follow these steps:
 
-STEP 1: Understand the English text completely
-- Identify the main message and context
-- Recognize any technical terms, idioms, or cultural references
-- Consider the appropriate tone and formality level
+STEP 1: Understand the context
+- Identify if this is game content (UI, dialogue, menus, instructions, etc.)
+- Recognize gaming terminology, technical terms, and interface elements
+- Consider the appropriate tone for gaming context (casual, engaging, clear)
 
-STEP 2: Translate to natural Thai
-- Use clear, natural Thai language that Thai speakers would actually use
-- Choose appropriate Thai vocabulary that matches the context
-- Maintain the original meaning and tone
-- For technical terms, use commonly accepted Thai equivalents or keep English terms when appropriate
+STEP 2: Translate for gaming context
+- Use natural Thai language that Thai gamers would understand
+- Keep important game terms in English when commonly used (e.g., "HP", "MP", "Level", "Boss")
+- Use appropriate gaming terminology in Thai when available
+- Maintain clarity for game instructions and interface elements
+- Use engaging tone suitable for gaming content
 
-Rules:
+Game-specific rules:
+- Common game terms: Keep "Level", "HP", "MP", "XP", "Boss", "Guild", "Quest" in English
+- UI elements: Translate clearly (Save/บันทึก, Load/โหลด, Settings/ตั้งค่า)
+- Game actions: Use common Thai gaming terms (โจมตี, ป้องกัน, หลบ, ใช้สกิล)
+- Numbers and stats: Keep numeric values unchanged
+- Character/item names: Keep proper names in original language
+
+General rules:
 - ONLY translate from English to Thai
 - If input is already Thai or other languages, return unchanged
 - Return ONLY the final Thai translation, no explanations or steps
 - Use appropriate Thai punctuation and formatting
+- Maintain the original meaning while making it natural for Thai gamers
 
 English text: "{text}"
 
@@ -102,7 +143,7 @@ Thai translation:"""
 
     def translate(self, text: str, target_language: str = 'th', source_language: str = 'auto') -> Dict:
         """
-        แปลข้อความจากอังกฤษเป็นไทย
+        แปลข้อความจากอังกฤษเป็นไทย พร้อม cache
         
         Args:
             text (str): ข้อความที่จะแปล
@@ -119,6 +160,11 @@ Thai translation:"""
                 'confidence': 0.0,
                 'service': 'ollama'
             }
+        
+        # ตรวจสอบ cache ก่อน
+        cached_result = self._get_from_cache(text, target_language)
+        if cached_result:
+            return cached_result
         
         # ตรวจสอบการเชื่อมต่อ
         if not self.is_connected:
@@ -145,12 +191,14 @@ Thai translation:"""
         
         # ถ้าเป็นภาษาไทยอยู่แล้ว ไม่ต้องแปล
         if detected_lang == 'th':
-            return {
+            result = {
                 'translated_text': text,
                 'detected_language': 'th',
                 'confidence': 1.0,
                 'service': 'ollama'
             }
+            self._save_to_cache(text, target_language, result)
+            return result
         
         # ถ้าไม่ใช่ภาษาอังกฤษ ไม่แปล
         if detected_lang != 'en':
@@ -188,19 +236,24 @@ Thai translation:"""
             )
             
             if response.status_code == 200:
-                result = response.json()
-                translated_text = result.get('response', '').strip()
+                result_data = response.json()
+                translated_text = result_data.get('response', '').strip()
                 
                 # ทำความสะอาดผลลัพธ์
                 translated_text = self._clean_translation(translated_text)
                 
-                return {
+                result = {
                     'translated_text': translated_text,
                     'detected_language': 'en',
                     'confidence': 0.9,
                     'service': 'ollama',
                     'model': self.model
                 }
+                
+                # บันทึกลง cache
+                self._save_to_cache(text, target_language, result)
+                
+                return result
             else:
                 error_msg = f"HTTP {response.status_code}: {response.text}"
                 print(f"❌ Ollama API error: {error_msg}")
