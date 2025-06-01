@@ -541,9 +541,13 @@ class Window(QMainWindow):
         text_layout.addWidget(self.translated_text)
         main_layout.addWidget(text_group, 1)  # ให้พื้นที่มากที่สุด
         
-        # 2. ปุ่มควบคุมและการตั้งค่าอยู่ด้านล่าง
+        # 2. ปุ่มควบคุมและการตั้งค่าอยู่ด้านล่างในรูปแบบ 3 column
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setSpacing(8)
+        
+        # Column 1: การควบคุม
         control_group = QGroupBox("🎮 การควบคุม")
-        control_layout = QHBoxLayout(control_group)
+        control_layout = QVBoxLayout(control_group)
         
         self.start_button = QPushButton("▶️ เริ่ม")
         self.start_button.clicked.connect(self.start_capture)
@@ -627,12 +631,11 @@ class Window(QMainWindow):
         control_layout.addWidget(self.start_button)
         control_layout.addWidget(self.stop_button)
         control_layout.addWidget(self.toggle_button)
-        control_layout.addStretch()
-        main_layout.addWidget(control_group)
+        bottom_layout.addWidget(control_group)
         
-        # การตั้งค่าระยะเวลา
+        # Column 2: การตั้งค่าระยะเวลา
         interval_group = QGroupBox("⏱️ การตั้งค่าระยะเวลา")
-        interval_layout = QHBoxLayout(interval_group)
+        interval_layout = QVBoxLayout(interval_group)
         
         interval_label = QLabel("ระยะเวลาจับภาพ (วินาที):")
         interval_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
@@ -668,9 +671,9 @@ class Window(QMainWindow):
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.interval_slider)
         interval_layout.addWidget(self.interval_value_label)
-        main_layout.addWidget(interval_group)
+        bottom_layout.addWidget(interval_group)
         
-        # สถานะ
+        # Column 3: สถานะ
         status_group = QGroupBox("📊 สถานะ")
         status_layout = QVBoxLayout(status_group)
         
@@ -688,7 +691,10 @@ class Window(QMainWindow):
         status_layout.addWidget(self.position_label)
         status_layout.addWidget(self.status_label)
         status_layout.addWidget(self.help_label)
-        main_layout.addWidget(status_group)
+        bottom_layout.addWidget(status_group)
+        
+        # เพิ่ม layout 3 column ลงใน main layout
+        main_layout.addLayout(bottom_layout)
         
     def on_selection_changed(self, x, y, width, height):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
