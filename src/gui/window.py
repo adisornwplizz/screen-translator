@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QHBoxLayout, QPushButton, QTextEdit, QLabel, 
                             QFrame, QSplitter, QGroupBox, QProgressBar,
                             QCheckBox, QSpinBox, QSlider, QTableWidget, 
-                            QTableWidgetItem, QHeaderView, QTabWidget)
+                            QTableWidgetItem, QHeaderView)
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal, QThread, pyqtSlot, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QCursor
 import pyautogui
@@ -588,16 +588,13 @@ class Window(QMainWindow):
         status_layout.addWidget(self.status_label)
         status_layout.addWidget(self.help_label)
         
-        # Text area and vocabulary table
+        # Content area with translation and vocabulary
         content_group = QGroupBox("เนื้อหา")
         content_layout = QVBoxLayout(content_group)
         
-        # ✨ เพิ่ม Tab Widget สำหรับแบ่งการแสดงผล
-        self.content_tabs = QTabWidget()
-        
-        # Tab 1: คำแปล
-        translation_tab = QWidget()
-        translation_layout = QVBoxLayout(translation_tab)
+        # Translation section
+        translation_group = QGroupBox("🔄 คำแปล")
+        translation_layout = QVBoxLayout(translation_group)
         
         self.translated_text = QTextEdit()
         self.translated_text.setFont(QFont("Tahoma", 12))
@@ -610,11 +607,15 @@ class Window(QMainWindow):
                 background-color: #FAFAFA;
             }
         """)
+        # Set minimum height for translation area
+        self.translated_text.setMinimumHeight(100)
+        self.translated_text.setMaximumHeight(150)
+        
         translation_layout.addWidget(self.translated_text)
         
-        # Tab 2: ตารางคำศัพท์
-        vocabulary_tab = QWidget()
-        vocabulary_layout = QVBoxLayout(vocabulary_tab)
+        # Vocabulary section
+        vocabulary_group = QGroupBox("📚 คำศัพท์")
+        vocabulary_layout = QVBoxLayout(vocabulary_group)
         
         # ✨ สร้างตารางคำศัพท์
         self.vocabulary_table = QTableWidget()
@@ -677,11 +678,9 @@ class Window(QMainWindow):
         vocabulary_layout.addWidget(self.vocabulary_table)
         vocabulary_layout.addLayout(vocab_controls)
         
-        # เพิ่ม tabs
-        self.content_tabs.addTab(translation_tab, "🔄 คำแปล")
-        self.content_tabs.addTab(vocabulary_tab, "📚 คำศัพท์")
-        
-        content_layout.addWidget(self.content_tabs)
+        # Add both sections to content layout
+        content_layout.addWidget(translation_group)
+        content_layout.addWidget(vocabulary_group)
         
         # Add widgets to main layout
         main_layout.addWidget(control_group)
