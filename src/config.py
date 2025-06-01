@@ -1,12 +1,5 @@
 # การตั้งค่าระบบ Screen Translator
 
-# การตั้งค่า OCR
-OCR_CONFIG = {
-    'tesseract_cmd': r'C:\Program Files\Tesseract-OCR\tesseract.exe',  # เปลี่ยนตามที่ติดตั้ง
-    'language': 'eng',  # ภาษาไทยและอังกฤษ
-    'config': '--psm 6'  # Page Segmentation Mode
-}
-
 # การตั้งค่าการแปล
 TRANSLATION_CONFIG = {
     'source_language': 'auto',

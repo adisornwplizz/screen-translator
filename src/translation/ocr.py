@@ -1,11 +1,10 @@
 import cv2
 import numpy as np
-import pytesseract
 from PIL import Image, ImageEnhance, ImageFilter
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from config import OCR_CONFIG, CAPTURE_CONFIG, OLLAMA_CONFIG
+from config import CAPTURE_CONFIG, OLLAMA_CONFIG
 import base64
 import requests
 from io import BytesIO
@@ -13,26 +12,26 @@ from .ollama_translator import OllamaTranslator
 
 
 class OCR:
-    def __init__(self, engine='tesseract', vision_model='gemma3:4b'):
+    def __init__(self, engine='ollama_vision', vision_model='gemma3:4b'):
         """เริ่มต้น OCR engine
-        engine: 'tesseract' หรือ 'ollama_vision' (AI Vision)
+        engine: 'ollama_vision' (AI Vision)
         vision_model: model ที่ใช้สำหรับ ollama_vision
         """
         self.engine = engine
         self.vision_model = vision_model
         try:
-            if self.engine == 'tesseract':
-                if os.path.exists(OCR_CONFIG['tesseract_cmd']):
-                    pytesseract.pytesseract.tesseract_cmd = OCR_CONFIG['tesseract_cmd']
-                else:
-                    print("⚠️  Tesseract ไม่พบในตำแหน่งที่กำหนด กรุณาติดตั้ง Tesseract-OCR")
-            elif self.engine == 'ollama_vision':
+            if self.engine == 'ollama_vision': # Simplified conditional
+                self.ollama = OllamaTranslator(model=self.vision_model)
+            else:
+                # Optionally, raise an error or log if a different engine is somehow passed
+                print(f"⚠️ Unsupported OCR engine: {self.engine}. Defaulting to ollama_vision.")
+                self.engine = 'ollama_vision'
                 self.ollama = OllamaTranslator(model=self.vision_model)
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการตั้งค่า OCR: {e}")
     
     def update_vision_model(self, model: str):
-        """อัปเดต vision model สำหรับ ollama_vision"""
+        """อัปเดต vision modelสำหรับ ollama_vision"""
         self.vision_model = model
         if self.engine == 'ollama_vision':
             self.ollama = OllamaTranslator(model=self.vision_model)
@@ -141,65 +140,65 @@ class OCR:
 
     def extract_text(self, image):
         """สกัดข้อความจากภาพด้วย engine ที่เลือก"""
-        if self.engine == 'ollama_vision':
-            return self.extract_text_ollama_vision(image)
+        # if self.engine == 'ollama_vision': # Always use ollama_vision
+        return self.extract_text_ollama_vision(image)
         
-        try:
-            if image is None:
-                return ""
+        # try:
+        #     if image is None:
+        #         return ""
             
-            # ประมวลผลภาพก่อน
-            processed_image = self.process_image(image)
+        #     # ประมวลผลภาพก่อน
+        #     processed_image = self.process_image(image)
             
-            # สกัดข้อความด้วย Tesseract
-            config = f"--psm 6 -l {OCR_CONFIG['language']}"
-            text = pytesseract.image_to_string(processed_image, config=config)
+        #     # สกัดข้อความด้วย Tesseract
+        #     config = f"--psm 6 -l {OCR_CONFIG['language']}"
+        #     text = pytesseract.image_to_string(processed_image, config=config)
             
-            # ทำความสะอาดข้อความ
-            cleaned_text = self._clean_text(text)
+        #     # ทำความสะอาดข้อความ
+        #     cleaned_text = self._clean_text(text)
             
-            return cleaned_text
+        #     return cleaned_text
             
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการสกัดข้อความ: {e}")
-            return ""
+        # except Exception as e:
+        #     print(f"❌ เกิดข้อผิดพลาดในการสกัดข้อความ: {e}")
+        #     return ""
 
     def get_text_with_confidence(self, image):
         """สกัดข้อความพร้อมค่าความมั่นใจ (รองรับ AI Vision)"""
-        if self.engine == 'ollama_vision':
-            text = self.extract_text_ollama_vision(image)
-            # AI Vision ไม่มี confidence score ที่แท้จริง ให้คืน 0.9 ถ้ามีข้อความ, 0 ถ้าไม่มี
-            conf = 0.9 if text.strip() else 0.0
-            return text, conf
+        # if self.engine == 'ollama_vision': # Always use ollama_vision
+        text = self.extract_text_ollama_vision(image)
+        # AI Vision ไม่มี confidence score ที่แท้จริง ให้คืน 0.9 ถ้ามีข้อความ, 0 ถ้าไม่มี
+        conf = 0.9 if text.strip() else 0.0
+        return text, conf
         
-        try:
-            if image is None:
-                return "", 0
+        # try:
+        #     if image is None:
+        #         return "", 0
             
-            processed_image = self.process_image(image)
+        #     processed_image = self.process_image(image)
             
-            # ใช้ image_to_data เพื่อได้ข้อมูลความมั่นใจ
-            config = f"--psm 6 -l {OCR_CONFIG['language']}"
-            data = pytesseract.image_to_data(processed_image, config=config, output_type=pytesseract.Output.DICT)
+        #     # ใช้ image_to_data เพื่อได้ข้อมูลความมั่นใจ
+        #     config = f"--psm 6 -l {OCR_CONFIG['language']}"
+        #     data = pytesseract.image_to_data(processed_image, config=config, output_type=pytesseract.Output.DICT)
             
-            # คำนวณค่าความมั่นใจเฉลี่ย
-            confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+        #     # คำนวณค่าความมั่นใจเฉลี่ย
+        #     confidences = [int(conf) for conf in data['conf'] if int(conf) > 0]
+        #     avg_confidence = sum(confidences) / len(confidences) if confidences else 0
             
-            # รวมข้อความ
-            words = []
-            for i, word in enumerate(data['text']):
-                if int(data['conf'][i]) > 30:  # เอาเฉพาะคำที่มีความมั่นใจมากกว่า 30%
-                    words.append(word)
+        #     # รวมข้อความ
+        #     words = []
+        #     for i, word in enumerate(data['text']):
+        #         if int(data['conf'][i]) > 30:  # เอาเฉพาะคำที่มีความมั่นใจมากกว่า 30%
+        #             words.append(word)
             
-            text = ' '.join(words)
-            cleaned_text = self._clean_text(text)
+        #     text = ' '.join(words)
+        #     cleaned_text = self._clean_text(text)
             
-            return cleaned_text, avg_confidence
+        #     return cleaned_text, avg_confidence
             
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการสกัดข้อความ: {e}")
-            return "", 0
+        # except Exception as e:
+        #     print(f"❌ เกิดข้อผิดพลาดในการสกัดข้อความ: {e}")
+        #     return "", 0
 
     def _clean_text(self, text):
         """ทำความสะอาดข้อความ
