@@ -12,9 +12,9 @@ import hashlib
 
 
 class OllamaTranslator:
-    """Translator ที่ใช้ Ollama API กับ Llama3.2:3b model"""
+    """Translator ที่ใช้ Ollama API กับ Gemma3:4b model"""
     
-    def __init__(self, host: str = "localhost", port: int = 11434, model: str = "llama3.2:3b"):
+    def __init__(self, host: str = "localhost", port: int = 11434, model: str = "gemma3:4b"):
         """
         เริ่มต้น Ollama Translator
         
@@ -106,39 +106,15 @@ class OllamaTranslator:
         return 'unknown'
 
     def _create_prompt(self, text: str) -> str:
-        """สร้าง prompt สำหรับ Ollama - ปรับปรุงสำหรับการแปลเกมและ UI"""
-        prompt = f"""You are a professional English to Thai translator specializing in game content and user interface elements. Follow these steps:
+        """สร้าง prompt สำหรับ Ollama - ปรับปรุงภาษาอังกฤษและแปลเป็นไทย ตอบกลับเฉพาะประโยคภาษาไทยเท่านั้น"""
+        prompt = f"""
+For the following English text, please go through each sentence and paragraph to enhance its readability and naturalness, making it sound like it was originally written by a native English speaker. Pay attention to sentence structure, vocabulary, and common expressions. Once the English version is optimized, please provide a comprehensive and accurate Thai translation.
 
-STEP 1: Understand the context
-- Identify if this is game content (UI, dialogue, menus, instructions, etc.)
-- Recognize gaming terminology, technical terms, and interface elements
-- Consider the appropriate tone for gaming context (casual, engaging, clear)
+English text:
+{text}
 
-STEP 2: Translate for gaming context
-- Use natural Thai language that Thai gamers would understand
-- Keep important game terms in English when commonly used (e.g., "HP", "MP", "Level", "Boss")
-- Use appropriate gaming terminology in Thai when available
-- Maintain clarity for game instructions and interface elements
-- Use engaging tone suitable for gaming content
-
-Game-specific rules:
-- Common game terms: Keep "Level", "HP", "MP", "XP", "Boss", "Guild", "Quest" in English
-- UI elements: Translate clearly (Save/บันทึก, Load/โหลด, Settings/ตั้งค่า)
-- Game actions: Use common Thai gaming terms (โจมตี, ป้องกัน, หลบ, ใช้สกิล)
-- Numbers and stats: Keep numeric values unchanged
-- Character/item names: Keep proper names in original language
-
-General rules:
-- ONLY translate from English to Thai
-- If input is already Thai or other languages, return unchanged
-- Return ONLY the final Thai translation, no explanations or steps
-- Use appropriate Thai punctuation and formatting
-- Maintain the original meaning while making it natural for Thai gamers
-
-English text: "{text}"
-
-Thai translation:"""
-        
+Respond ONLY with the final Thai translation sentence. Do not include any English, explanations, or extra formatting.
+"""
         return prompt
 
     def translate(self, text: str, target_language: str = 'th', source_language: str = 'auto') -> Dict:
@@ -377,7 +353,7 @@ Thai translation:"""
 
 if __name__ == "__main__":
     # ทดสอบ Ollama Translator
-    translator = OllamaTranslator(model="llama3.2:3b")
+    translator = OllamaTranslator(model="gemma3:4b")
     
     if translator.is_available():
         translator.test_translation()
@@ -385,5 +361,5 @@ if __name__ == "__main__":
         print("❌ Ollama ไม่พร้อมใช้งาน กรุณาตรวจสอบ:")
         print("   1. Ollama กำลังทำงาน")
         print("   2. Ollama ทำงานบน port 11434")
-        print("   3. Model llama3.2:3b ได้ถูก pull แล้ว")
-        print("   4. สั่งรัน: ollama pull llama3.2:3b")
+        print("   3. Model gemma3:4b ได้ถูก pull แล้ว")
+        print("   4. สั่งรัน: ollama pull gemma3:4b")
