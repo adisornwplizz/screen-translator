@@ -3,7 +3,7 @@ import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QTextEdit, QLabel, 
                             QFrame, QSplitter, QGroupBox, QProgressBar,
-                            QCheckBox, QSpinBox)
+                            QCheckBox, QSpinBox, QSlider)
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal, QThread, pyqtSlot, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QCursor
 import pyautogui
@@ -469,6 +469,9 @@ class Window(QMainWindow):
         self.target_language = 'th'
         self.last_detected_text = ""
         
+        # การตั้งค่าระยะเวลาการจับภาพ
+        self.capture_interval = UI_CONFIG.get('capture_interval', 2000)  # default 2000ms
+        
         self.setup_ui()
         
         # Timer setup
@@ -542,6 +545,25 @@ class Window(QMainWindow):
         control_layout.addWidget(self.toggle_button)
         control_layout.addStretch()
         
+        # Capture interval control
+        interval_group = QGroupBox("การตั้งค่าระยะเวลา")
+        interval_layout = QHBoxLayout(interval_group)
+        
+        interval_label = QLabel("ระยะเวลาจับภาพ (วินาที):")
+        self.interval_slider = QSlider(Qt.Horizontal)
+        self.interval_slider.setMinimum(UI_CONFIG.get('capture_interval_min', 500) // 1000)  # Convert to seconds
+        self.interval_slider.setMaximum(UI_CONFIG.get('capture_interval_max', 10000) // 1000)  # Convert to seconds
+        self.interval_slider.setValue(self.capture_interval // 1000)  # Convert to seconds
+        self.interval_slider.valueChanged.connect(self.on_interval_changed)
+        
+        self.interval_value_label = QLabel(f"{self.capture_interval // 1000}s")
+        self.interval_value_label.setMinimumWidth(40)
+        self.interval_value_label.setStyleSheet("QLabel { font-weight: bold; color: #2E7D32; }")
+        
+        interval_layout.addWidget(interval_label)
+        interval_layout.addWidget(self.interval_slider)
+        interval_layout.addWidget(self.interval_value_label)
+        
         # Status info
         status_group = QGroupBox("สถานะ - ✨ Enhanced Features")
         status_layout = QVBoxLayout(status_group)
@@ -580,6 +602,7 @@ class Window(QMainWindow):
         
         # Add widgets to main layout
         main_layout.addWidget(control_group)
+        main_layout.addWidget(interval_group)
         main_layout.addWidget(status_group)
         main_layout.addWidget(text_group, 1)
         
@@ -587,6 +610,17 @@ class Window(QMainWindow):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
         self.current_selection = QRect(x, y, width, height)
         self.position_label.setText(f"ตำแหน่ง: X={x}, Y={y}, กว้าง={width}, สูง={height}")
+    
+    def on_interval_changed(self, value):
+        """เมื่อระยะเวลาการจับภาพเปลี่ยน"""
+        self.capture_interval = value * 1000  # Convert seconds to milliseconds
+        self.interval_value_label.setText(f"{value}s")
+        
+        # ถ้ากำลังจับภาพอยู่ให้อัปเดต timer
+        if self.is_capturing:
+            self.capture_timer.stop()
+            self.capture_timer.start(self.capture_interval)
+            print(f"🔄 อัปเดตระยะเวลาการจับภาพเป็น {value} วินาที")
         
     def start_capture(self):
         """เริ่มการจับภาพ real-time"""
@@ -594,10 +628,10 @@ class Window(QMainWindow):
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         
-        # เริ่ม timer สำหรับจับภาพ
-        self.capture_timer.start(2000)  # 2 seconds interval
+        # เริ่ม timer สำหรับจับภาพด้วยระยะเวลาที่กำหนด
+        self.capture_timer.start(self.capture_interval)
         
-        self.status_label.setText("สถานะ: เริ่มการจับภาพ...")
+        self.status_label.setText(f"สถานะ: เริ่มการจับภาพ (ทุก {self.capture_interval//1000} วินาที)")
         
     def stop_capture(self):
         """หยุดการจับภาพ"""

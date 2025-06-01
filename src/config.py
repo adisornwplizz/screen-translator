@@ -11,12 +11,17 @@ OCR_CONFIG = {
 TRANSLATION_CONFIG = {
     'source_language': 'auto',
     'target_language': 'th',  # แปลเป็นภาษาไทย
-    'service': 'google'
+    'service': 'google',
+    'enable_cache': True,  # เปิดใช้งาน cache เพื่อหลีกเลี่ยงการแปลข้อความซ้ำ
+    'cache_size': 100  # จำนวนคำแปลที่เก็บใน cache
 }
 
 # การตั้งค่า UI
 UI_CONFIG = {
     'update_interval': 1000,  # milliseconds
+    'capture_interval': 2000,  # milliseconds - ระยะเวลาในการจับข้อความ
+    'capture_interval_min': 500,  # milliseconds - ค่าต่ำสุด
+    'capture_interval_max': 10000,  # milliseconds - ค่าสูงสุด
     'default_selection_size': (300, 200),
     'min_selection_size': (50, 50),
     'selection_color': (255, 0, 0),  # สีแดง
