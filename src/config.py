@@ -54,11 +54,3 @@ English text:
 
 Respond ONLY with the final Thai translation sentence. Do not include any English, explanations, or extra formatting."""
 }
-
-# Legacy settings (เก็บไว้เพื่อความเข้ากันได้)
-API_KEY = "your_translation_api_key_here"
-OCR_API_URL = "https://api.ocr-service.com/recognize"
-TRANSLATION_API_URL = "https://api.translation-service.com/translate"
-SCREEN_REGION = (100, 100, 800, 600)
-LANGUAGE_FROM = "en"
-LANGUAGE_TO = "th"
