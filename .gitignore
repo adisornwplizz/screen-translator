@@ -77,6 +77,9 @@ simple_*.py
 check_*.py
 quick_*.py
 final_test*.py
+demo_ollama_features.py
+test_ollama_models.py
+test_ui_validation.py
 
 # Backup files
 *_backup.py
