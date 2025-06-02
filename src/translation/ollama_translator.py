@@ -8,7 +8,6 @@ import json
 import time
 import re
 from typing import Dict, List, Optional
-import hashlib
 
 
 class OllamaTranslator:
@@ -35,10 +34,6 @@ class OllamaTranslator:
         # กำหนด timeout
         self.timeout = 30
         
-        # Translation cache เพื่อหลีกเลี่ยงการแปลข้อความซ้ำ
-        self.translation_cache = {}
-        self.cache_max_size = 100
-        
         # ตรวจสอบการเชื่อมต่อ
         self.is_connected = self._test_connection()
         
@@ -50,15 +45,11 @@ class OllamaTranslator:
     def update_model(self, model: str):
         """อัปเดต model ที่ใช้"""
         self.model = model
-        # ล้าง cache เมื่อเปลี่ยน model
-        self.translation_cache.clear()
         print(f"🔄 เปลี่ยน model เป็น: {self.model}")
     
     def update_custom_prompt(self, custom_prompt: str):
         """อัปเดต custom prompt"""
         self.custom_prompt = custom_prompt
-        # ล้าง cache เมื่อเปลี่ยน prompt
-        self.translation_cache.clear()
         print(f"🔄 อัปเดต custom prompt: {'ใช้' if custom_prompt else 'ไม่ใช้'}")
 
     def _test_connection(self) -> bool:
@@ -79,33 +70,6 @@ class OllamaTranslator:
         except Exception as e:
             print(f"❌ ข้อผิดพลาดในการทดสอบการเชื่อมต่อ: {e}")
             return False
-
-    def _get_cache_key(self, text: str, target_language: str) -> str:
-        """สร้าง key สำหรับ cache"""
-        content = f"{text.strip().lower()}_{target_language}"
-        return hashlib.md5(content.encode('utf-8')).hexdigest()
-    
-    def _get_from_cache(self, text: str, target_language: str) -> Optional[Dict]:
-        """ดึงผลลัพธ์จาก cache"""
-        cache_key = self._get_cache_key(text, target_language)
-        if cache_key in self.translation_cache:
-            cached_result = self.translation_cache[cache_key].copy()
-            cached_result['from_cache'] = True
-            print(f"📋 ใช้ผลลัพธ์จาก cache สำหรับ: {text[:50]}...")
-            return cached_result
-        return None
-    
-    def _save_to_cache(self, text: str, target_language: str, result: Dict):
-        """บันทึกผลลัพธ์ลง cache"""
-        if len(self.translation_cache) >= self.cache_max_size:
-            # ลบรายการแรกออกเมื่อ cache เต็ม
-            oldest_key = next(iter(self.translation_cache))
-            del self.translation_cache[oldest_key]
-        
-        cache_key = self._get_cache_key(text, target_language)
-        # ไม่บันทึก error results
-        if 'error' not in result:
-            self.translation_cache[cache_key] = result.copy()
 
     def _detect_language(self, text: str) -> str:
         """ตรวจจับภาษาอย่างง่าย"""
@@ -140,7 +104,7 @@ Respond ONLY with the final Thai translation sentence. Do not include any Englis
 
     def translate(self, text: str, target_language: str = 'th', source_language: str = 'auto') -> Dict:
         """
-        แปลข้อความจากอังกฤษเป็นไทย พร้อม cache
+        แปลข้อความจากอังกฤษเป็นไทย
         
         Args:
             text (str): ข้อความที่จะแปล
@@ -157,11 +121,6 @@ Respond ONLY with the final Thai translation sentence. Do not include any Englis
                 'confidence': 0.0,
                 'service': 'ollama'
             }
-        
-        # ตรวจสอบ cache ก่อน
-        cached_result = self._get_from_cache(text, target_language)
-        if cached_result:
-            return cached_result
         
         # ตรวจสอบการเชื่อมต่อ
         if not self.is_connected:
@@ -194,7 +153,6 @@ Respond ONLY with the final Thai translation sentence. Do not include any Englis
                 'confidence': 1.0,
                 'service': 'ollama'
             }
-            self._save_to_cache(text, target_language, result)
             return result
         
         # ถ้าไม่ใช่ภาษาอังกฤษ ไม่แปล
@@ -246,9 +204,6 @@ Respond ONLY with the final Thai translation sentence. Do not include any Englis
                     'service': 'ollama',
                     'model': self.model
                 }
-                
-                # บันทึกลง cache
-                self._save_to_cache(text, target_language, result)
                 
                 return result
             else:
