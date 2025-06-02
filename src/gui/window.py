@@ -18,6 +18,39 @@ from config import UI_CONFIG, OLLAMA_CONFIG
 from gui.selection_widget import SelectionWidget
 
 
+class OCRWorker(QThread):
+    """Worker thread สำหรับ OCR เพื่อป้องกานการค้างของ UI"""
+    finished = pyqtSignal(str, float)  # text, confidence
+    error = pyqtSignal(str)  # error message
+    
+    def __init__(self, ocr, screenshot):
+        super().__init__()
+        self.ocr = ocr
+        self.screenshot = screenshot
+        self._is_cancelled = False
+    
+    def run(self):
+        """รัน OCR ใน background thread"""
+        try:
+            if self._is_cancelled:
+                return
+                
+            # สกัดข้อความพร้อมค่าความมั่นใจ
+            text, confidence = self.ocr.get_text_with_confidence(self.screenshot)
+            
+            if not self._is_cancelled:
+                self.finished.emit(text, confidence)
+                
+        except Exception as e:
+            if not self._is_cancelled:
+                self.error.emit(str(e))
+    
+    def cancel(self):
+        """ยกเลิกการประมวลผล"""
+        self._is_cancelled = True
+        self.quit()
+        self.wait(2000)  # รอ 2 วินาทีให้ thread หยุด
+
 
 class Window(QMainWindow):
     def __init__(self, title="Screen Translator"):
@@ -46,6 +79,9 @@ class Window(QMainWindow):
         self.auto_translate = True
         self.target_language = 'th'
         self.last_detected_text = ""
+        
+        # OCR Worker thread เพื่อป้องกันการค้าง
+        self.ocr_worker = None
         
         # การตั้งค่าระยะเวลาการจับภาพ
         self.capture_interval = UI_CONFIG.get('capture_interval', 2000)  # default 2000ms
@@ -408,6 +444,11 @@ class Window(QMainWindow):
     def capture_and_process(self):
         """จับภาพหน้าจอและประมวลผล OCR"""
         try:
+            # ตรวจสอบว่า OCR worker ยังทำงานอยู่หรือไม่
+            if self.ocr_worker and self.ocr_worker.isRunning():
+                print("⚠️ OCR ยังทำงานอยู่ ข้าม capture ครั้งนี้")
+                return
+                
             self.status_label.setText("สถานะ: กำลังจับภาพ...")
             
             # จับภาพพื้นที่ที่เลือก
@@ -422,23 +463,18 @@ class Window(QMainWindow):
             screenshot = self.ocr.capture_screen(region)
             
             if screenshot:
-                # สกัดข้อความพร้อมค่าความมั่นใจ
-                text, confidence = self.ocr.get_text_with_confidence(screenshot)
+                # ยกเลิก worker เก่าถ้ามี
+                if self.ocr_worker:
+                    self.ocr_worker.cancel()
+                    
+                # สร้าง worker ใหม่
+                self.ocr_worker = OCRWorker(self.ocr, screenshot)
+                self.ocr_worker.finished.connect(self.on_ocr_finished)
+                self.ocr_worker.error.connect(self.on_ocr_error)
                 
-                # อัปเดตสถานะ
-                self.status_label.setText("สถานะ: กำลังประมวลผล...")
-                
-                # แสดงข้อความ
-                if text.strip():
-                    # ตรวจสอบว่าเป็นข้อความใหม่หรือไม่
-                    if text != self.last_detected_text:
-                        # แปลอัตโนมัติเสมอ
-                        if self.auto_translate:
-                            self.translate_text(text)
-                        
-                        self.last_detected_text = text
-                
-                self.status_label.setText("สถานะ: พร้อมใช้งาน")
+                # เริ่มประมวลผล OCR ใน background
+                self.status_label.setText("สถานะ: กำลังอ่านข้อความ...")
+                self.ocr_worker.start()
             else:
                 self.status_label.setText("สถานะ: ไม่สามารถจับภาพได้")
                 
@@ -446,6 +482,34 @@ class Window(QMainWindow):
             self.translated_text.clear()
             self.translated_text.append(f"❌ เกิดข้อผิดพลาด: {str(e)}")
             self.status_label.setText("สถานะ: เกิดข้อผิดพลาด")
+    
+    @pyqtSlot(str, float)
+    def on_ocr_finished(self, text, confidence):
+        """เมื่อ OCR เสร็จสิ้น"""
+        try:
+            self.status_label.setText("สถานะ: กำลังประมวลผล...")
+            
+            # แสดงข้อความ
+            if text.strip():
+                # ตรวจสอบว่าเป็นข้อความใหม่หรือไม่
+                if text != self.last_detected_text:
+                    # แปลอัตโนมัติเสมอ
+                    if self.auto_translate:
+                        self.translate_text(text)
+                    
+                    self.last_detected_text = text
+            
+            self.status_label.setText("สถานะ: พร้อมใช้งาน")
+            
+        except Exception as e:
+            self.on_ocr_error(str(e))
+    
+    @pyqtSlot(str)
+    def on_ocr_error(self, error_message):
+        """เมื่อ OCR เกิดข้อผิดพลาด"""
+        self.translated_text.clear()
+        self.translated_text.append(f"❌ เกิดข้อผิดพลาด OCR: {error_message}")
+        self.status_label.setText("สถานะ: เกิดข้อผิดพลาด OCR")
     
     def translate_text(self, text):
         """แปลข้อความ"""
@@ -589,6 +653,11 @@ class Window(QMainWindow):
     
     def closeEvent(self, event):
         """เมื่อปิดหน้าต่างหลัก"""
+        # ยกเลิกและรอ OCR worker
+        if self.ocr_worker and self.ocr_worker.isRunning():
+            print("🛑 กำลังยกเลิก OCR worker...")
+            self.ocr_worker.cancel()
+        
         self.selection_widget.close()
         event.accept()
 

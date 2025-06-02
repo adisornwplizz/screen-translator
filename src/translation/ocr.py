@@ -60,6 +60,15 @@ class OCR:
             if image is None:
                 return None
                 
+            # จำกัดขนาดภาพสูงสุดเพื่อป้องกันการใช้ทรัพยากรมากเกินไป
+            MAX_WIDTH, MAX_HEIGHT = 1920, 1080
+            if image.width > MAX_WIDTH or image.height > MAX_HEIGHT:
+                # ปรับขนาดภาพโดยคงอัตราส่วน
+                ratio = min(MAX_WIDTH / image.width, MAX_HEIGHT / image.height)
+                new_size = (int(image.width * ratio), int(image.height * ratio))
+                image = image.resize(new_size, Image.Resampling.LANCZOS)
+                print(f"🔄 ปรับขนาดภาพเป็น {new_size} เพื่อประหยัดทรัพยากร")
+                
             # แปลงเป็น numpy array
             img_array = np.array(image)
             
@@ -117,7 +126,9 @@ class OCR:
                 "options": {"temperature": 0.1, "max_tokens": 1024}
             }
             url = f"http://localhost:11434/api/generate"
-            response = requests.post(url, json=payload, timeout=60)
+            # ลดเวลา timeout เพื่อป้องกันการค้าง - จาก 60 วินาที เป็น 15 วินาที
+            # เพิ่ม connection timeout เพื่อจัดการปัญหาเครือข่าย
+            response = requests.post(url, json=payload, timeout=(5, 15))  # (connect_timeout, read_timeout)
             if response.status_code == 200:
                 result = response.json()
                 text = result.get('response', '').strip()
@@ -125,6 +136,15 @@ class OCR:
             else:
                 print(f"❌ Ollama Vision error: {response.text}")
                 return ""
+        except requests.exceptions.ConnectTimeout:
+            print(f"❌ Ollama Vision connection timeout: ไม่สามารถเชื่อมต่อ Ollama ได้")
+            return ""
+        except requests.exceptions.ReadTimeout:
+            print(f"❌ Ollama Vision read timeout: Ollama ตอบสนองช้าเกินไป")
+            return ""
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Ollama Vision network error: {e}")
+            return ""
         except Exception as e:
             print(f"❌ Ollama Vision OCR error: {e}")
             return ""

@@ -11,9 +11,9 @@ TRANSLATION_CONFIG = {
 # การตั้งค่า UI
 UI_CONFIG = {
     'update_interval': 1000,  # milliseconds
-    'capture_interval': 3000,  # milliseconds - เพิ่มช่วงเวลาเพื่อประหยัดทรัพยากร
-    'capture_interval_min': 1000,  # milliseconds - เพิ่มค่าต่ำสุดเพื่อประหยัดทรัพยากร
-    'capture_interval_max': 10000,  # milliseconds - ค่าสูงสุด
+    'capture_interval': 5000,  # milliseconds - เพิ่มเป็น 5 วินาทีเพื่อลดความถี่และป้องกันการค้าง
+    'capture_interval_min': 2000,  # milliseconds - เพิ่มค่าต่ำสุดเพื่อประหยัดทรัพยากร
+    'capture_interval_max': 15000,  # milliseconds - เพิ่มค่าสูงสุด
     'default_selection_size': (300, 200),
     'min_selection_size': (50, 50),
     'selection_color': (255, 0, 0),  # สีแดง
