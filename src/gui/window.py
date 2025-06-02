@@ -41,7 +41,7 @@ class Window(QMainWindow):
         self.custom_prompt = ""  # Reset to default on restart
         OLLAMA_CONFIG['custom_prompt'] = ""  # Update config too
         
-        self.ocr = OCR(engine='ollama_vision', vision_model=self.vision_model)
+        self.ocr = OCR(vision_model=self.vision_model)
         self.translator = Translator(service='ollama', ollama_model=self.translation_model, custom_prompt=self.custom_prompt)
         self.auto_translate = True
         self.target_language = 'th'
