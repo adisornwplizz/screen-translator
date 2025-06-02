@@ -66,21 +66,12 @@ class OllamaService:
     
     def get_vision_models(self) -> List[str]:
         """
-        ดึงรายการ models ที่รองรับ vision (มี 'vision' ในชื่อ)
+        ดึงรายการ models ทั้งหมดที่มี (ไม่กรองเฉพาะ vision)
         
         Returns:
-            List[str]: รายชื่อ vision models
+            List[str]: รายชื่อ models ทั้งหมด
         """
-        model_names = self.get_model_names()
-        # กรองหา models ที่น่าจะรองรับ vision
-        vision_models = []
-        for name in model_names:
-            # ตรวจสอบ keywords ที่บ่งบอกว่าเป็น vision model
-            vision_keywords = ['vision', 'vlm', 'multimodal', 'llava', 'gemma']
-            if any(keyword in name.lower() for keyword in vision_keywords):
-                vision_models.append(name)
-        
-        return vision_models if vision_models else model_names  # fallback ถ้าไม่เจอ
+        return self.get_model_names() # Return all model names
     
     def get_text_models(self) -> List[str]:
         """
