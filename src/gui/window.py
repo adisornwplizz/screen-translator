@@ -3,7 +3,8 @@ import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QTextEdit, QLabel, 
                             QFrame, QSplitter, QGroupBox, QProgressBar,
-                            QCheckBox, QSpinBox, QSlider, QComboBox)
+                            QCheckBox, QSpinBox, QSlider, QComboBox, QTabWidget,
+                            QScrollArea, QMessageBox)
 from PyQt5.QtCore import Qt, QTimer, QRect, pyqtSignal, QThread, pyqtSlot, QPoint
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont, QCursor
 from PIL import Image
@@ -53,11 +54,15 @@ class OCRWorker(QThread):
 
 
 class Window(QMainWindow):
-    def __init__(self, title="Screen Translator"):
+    def __init__(self, title="Screen Translator - ใช้งานง่าย"):
         super().__init__()
         self.title = title
         self.setWindowTitle(title)
-        self.setGeometry(100, 100, 800, 700)  # เพิ่มความกว้างและสูงเพื่อรองรับ 4 columns
+        self.setGeometry(100, 100, 700, 600)  # ลดขนาดให้เหมาะสมกับ UI ใหม่
+        
+        # Simple mode by default
+        self.simple_mode = True
+        self.first_time_user = True
         
         # ✨ Use the enhanced SelectionWidget
         self.selection_widget = SelectionWidget()
@@ -93,100 +98,178 @@ class Window(QMainWindow):
         self.capture_timer.timeout.connect(self.capture_and_process)
         
     def setup_ui(self):
-        """ตั้งค่า UI - Windows Black & White Theme"""
+        """ตั้งค่า UI แบบใช้งานง่าย - เน้นความเรียบง่ายและใช้งานง่าย"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # ตั้งค่า Windows-inspired styling
+        # Simple, clean styling
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: #f8f9fa;
+                color: #212529;
             }
             QWidget {
-                background-color: #ffffff;
-                color: #000000;
+                background-color: #f8f9fa;
+                color: #212529;
                 font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 11px;
             }
             QGroupBox {
                 font-weight: bold;
-                font-size: 11px;
-                border: 2px solid #cccccc;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: #f8f8f8;
+                font-size: 12px;
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding-top: 12px;
+                background-color: #ffffff;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: #ffffff;
-                color: #000000;
+                left: 15px;
+                padding: 0 8px 0 8px;
+                background-color: #f8f9fa;
+                color: #495057;
             }
         """)
         
-        # Layout หลัก
+        # Main layout
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(8)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(15, 15, 15, 15)
         
-        # 1. กล่องคำแปลอยู่ด้านบนสุด
-        text_group = QGroupBox("📄 คำแปล")
-        text_layout = QVBoxLayout(text_group)
+        # Show welcome message for first-time users
+        if self.first_time_user:
+            self.show_welcome_message()
         
-        self.translated_text = QTextEdit()
-        self.translated_text.setFont(QFont("Segoe UI", 12))
-        self.translated_text.setPlaceholderText("คำแปลจะแสดงที่นี่...")
-        self.translated_text.setStyleSheet("""
-            QTextEdit { 
-                border: 2px solid #cccccc; 
-                border-radius: 4px; 
-                padding: 8px; 
-                background-color: #ffffff;
-                color: #000000;
-                selection-background-color: #0078d4;
-                selection-color: #ffffff;
-            }
-            QTextEdit:focus {
-                border: 2px solid #0078d4;
+        # Quick start section for simple mode
+        if self.simple_mode:
+            self.setup_simple_ui(main_layout)
+        else:
+            self.setup_advanced_ui(main_layout)
+    
+    def show_welcome_message(self):
+        """แสดงข้อความต้อนรับสำหรับผู้ใช้ใหม่"""
+        msg = QMessageBox(self)
+        msg.setWindowTitle("ยินดีต้อนรับ!")
+        msg.setText("ยินดีต้อนรับสู่ Screen Translator! 🎉")
+        msg.setInformativeText("แอปนี้จะช่วยแปลข้อความบนหน้าจอให้คุณแบบอัตโนมัติ\n\n"
+                              "เริ่มต้นง่ายๆ ด้วย 3 ขั้นตอน:\n"
+                              "1️⃣ เลือกพื้นที่บนหน้าจอ\n"
+                              "2️⃣ กดปุ่มเริ่ม\n"
+                              "3️⃣ ดูผลการแปล\n\n"
+                              "คลิก OK เพื่อเริ่มใช้งาน!")
+        msg.setIcon(QMessageBox.Information)
+        msg.exec_()
+        self.first_time_user = False
+    
+    def setup_simple_ui(self, main_layout):
+        """ตั้งค่า UI แบบง่าย เน้นใช้งานง่าย"""
+        # Title and mode toggle
+        header_layout = QHBoxLayout()
+        
+        title_label = QLabel("🌟 Screen Translator - โหมดใช้งานง่าย")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #007bff;
+                padding: 8px;
             }
         """)
-        text_layout.addWidget(self.translated_text)
-        main_layout.addWidget(text_group, 1)  # ให้พื้นที่มากที่สุด
         
-        # 2. ปุ่มควบคุมและการตั้งค่าอยู่ด้านล่างในรูปแบบ 3 column
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setSpacing(8)
-        
-        # Column 1: การควบคุม
-        control_group = QGroupBox("🎮 การควบคุม")
-        control_layout = QVBoxLayout(control_group)
-        
-        self.start_button = QPushButton("▶️ เริ่ม")
-        self.start_button.clicked.connect(self.start_capture)
-        self.start_button.setStyleSheet("""
-            QPushButton { 
-                background-color: #0078d4; 
-                color: white; 
-                padding: 8px 16px; 
+        self.mode_toggle_btn = QPushButton("⚙️ โหมดขั้นสูง")
+        self.mode_toggle_btn.clicked.connect(self.toggle_mode)
+        self.mode_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
                 font-size: 11px;
-                font-weight: bold; 
-                border: 1px solid #005a9e;
-                border-radius: 3px;
-                min-width: 80px;
             }
-            QPushButton:hover { 
-                background-color: #106ebe; 
-                border: 1px solid #005a9e;
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+        """)
+        
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        header_layout.addWidget(self.mode_toggle_btn)
+        main_layout.addLayout(header_layout)
+        
+        # Step-by-step guide
+        guide_group = QGroupBox("📋 วิธีการใช้งาน")
+        guide_layout = QVBoxLayout(guide_group)
+        
+        steps = [
+            "1️⃣ คลิก 'เลือกพื้นที่' เพื่อกำหนดบริเวณที่ต้องการแปล",
+            "2️⃣ ลากกรอบสีแดงไปยังข้อความที่ต้องการ",
+            "3️⃣ กด 'เริ่มแปล' เพื่อเริ่มการทำงาน", 
+            "4️⃣ ดูผลการแปลในกล่องด้านล่าง"
+        ]
+        
+        for step in steps:
+            step_label = QLabel(step)
+            step_label.setStyleSheet("""
+                QLabel {
+                    padding: 4px 8px;
+                    background-color: #e9ecef;
+                    border-radius: 4px;
+                    margin: 2px 0;
+                }
+            """)
+            guide_layout.addWidget(step_label)
+        
+        main_layout.addWidget(guide_group)
+        
+        # Main action buttons (large and prominent)
+        action_group = QGroupBox("🎮 การควบคุมหลัก")
+        action_layout = QVBoxLayout(action_group)
+        
+        # Selection button
+        self.select_area_btn = QPushButton("📐 เลือกพื้นที่บนหน้าจอ")
+        self.select_area_btn.clicked.connect(self.show_selection_area)
+        self.select_area_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                padding: 15px 25px;
+                font-size: 14px;
+                font-weight: bold;
+                border: none;
+                border-radius: 8px;
+                margin: 5px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
             }
             QPushButton:pressed {
-                background-color: #005a9e;
+                background-color: #1e7e34;
+            }
+        """)
+        
+        # Start/Stop buttons
+        button_layout = QHBoxLayout()
+        
+        self.start_button = QPushButton("▶️ เริ่มแปล")
+        self.start_button.clicked.connect(self.start_capture)
+        self.start_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                padding: 12px 20px;
+                font-size: 13px;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                margin: 5px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
             }
             QPushButton:disabled {
-                background-color: #f3f2f1;
-                color: #a19f9d;
-                border: 1px solid #d2d0ce;
+                background-color: #6c757d;
             }
         """)
         
@@ -194,219 +277,377 @@ class Window(QMainWindow):
         self.stop_button.clicked.connect(self.stop_capture)
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet("""
-            QPushButton { 
-                background-color: #d83b01; 
-                color: white; 
-                padding: 8px 16px; 
-                font-size: 11px;
-                font-weight: bold; 
-                border: 1px solid #a4262c;
-                border-radius: 3px;
-                min-width: 80px;
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                padding: 12px 20px;
+                font-size: 13px;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                margin: 5px;
             }
-            QPushButton:hover { 
-                background-color: #f2583e; 
-                border: 1px solid #a4262c;
-            }
-            QPushButton:pressed {
-                background-color: #a4262c;
+            QPushButton:hover {
+                background-color: #c82333;
             }
             QPushButton:disabled {
-                background-color: #f3f2f1;
-                color: #a19f9d;
-                border: 1px solid #d2d0ce;
+                background-color: #6c757d;
             }
         """)
         
-        # ปุ่ม toggle visibility
+        button_layout.addWidget(self.start_button)
+        button_layout.addWidget(self.stop_button)
+        
+        action_layout.addWidget(self.select_area_btn)
+        action_layout.addLayout(button_layout)
+        main_layout.addWidget(action_group)
+        
+        # Translation result area (big and prominent)
+        result_group = QGroupBox("📄 ผลการแปล")
+        result_layout = QVBoxLayout(result_group)
+        
+        self.translated_text = QTextEdit()
+        self.translated_text.setFont(QFont("Segoe UI", 13))
+        self.translated_text.setPlaceholderText("ผลการแปลจะแสดงที่นี่...\n\n💡 เคล็ดลับ: คุณสามารถคัดลอกข้อความได้โดยการเลือกและกด Ctrl+C")
+        self.translated_text.setStyleSheet("""
+            QTextEdit {
+                border: 2px solid #dee2e6;
+                border-radius: 8px;
+                padding: 12px;
+                background-color: #ffffff;
+                color: #212529;
+                font-size: 13px;
+                line-height: 1.4;
+            }
+            QTextEdit:focus {
+                border: 2px solid #007bff;
+            }
+        """)
+        self.translated_text.setMinimumHeight(200)
+        
+        result_layout.addWidget(self.translated_text)
+        main_layout.addWidget(result_group, 1)  # Give most space to results
+        
+        # Simple status bar
+        self.status_label = QLabel("📍 สถานะ: พร้อมใช้งาน - เลือกพื้นที่เพื่อเริ่มต้น")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background-color: #d4edda;
+                color: #155724;
+                padding: 8px 12px;
+                border-radius: 4px;
+                border: 1px solid #c3e6cb;
+                font-size: 11px;
+            }
+        """)
+        main_layout.addWidget(self.status_label)
+        
+        # Position info (simplified)
+        self.position_label = QLabel("📐 ตำแหน่งการเลือก: ยังไม่ได้เลือก")
+        self.position_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+        """)
+        main_layout.addWidget(self.position_label)
+        
+        # Create dummy combo boxes for Ollama models (hidden in simple mode)
+        self.vision_model_combo = QComboBox()
+        self.vision_model_combo.hide()
+        self.translation_model_combo = QComboBox()
+        self.translation_model_combo.hide()
+        self.prompt_text = QTextEdit()
+        self.prompt_text.hide()
+        self.reset_prompt_btn = QPushButton()
+        self.reset_prompt_btn.hide()
+        
+        # Initialize Ollama models even in simple mode
+        self.load_ollama_models()
+    
+    def setup_advanced_ui(self, main_layout):
+        """ตั้งค่า UI แบบขั้นสูง (เหมือนเดิม + การปรับปรุง)"""
+        # Title and mode toggle
+        header_layout = QHBoxLayout()
+        
+        title_label = QLabel("⚙️ Screen Translator - โหมดขั้นสูง")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #dc3545;
+                padding: 8px;
+            }
+        """)
+        
+        self.mode_toggle_btn = QPushButton("🌟 โหมดง่าย")
+        self.mode_toggle_btn.clicked.connect(self.toggle_mode)
+        self.mode_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        header_layout.addWidget(self.mode_toggle_btn)
+        main_layout.addLayout(header_layout)
+        
+        # Use tabs for better organization
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                background-color: #ffffff;
+            }
+            QTabBar::tab {
+                background-color: #e9ecef;
+                color: #495057;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: #ffffff;
+                color: #007bff;
+                border-bottom: 2px solid #007bff;
+            }
+        """)
+        
+        # Main tab
+        main_tab = QWidget()
+        main_tab_layout = QVBoxLayout(main_tab)
+        
+        # Translation result area (same as simple mode)
+        result_group = QGroupBox("📄 ผลการแปล")
+        result_layout = QVBoxLayout(result_group)
+        
+        self.translated_text = QTextEdit()
+        self.translated_text.setFont(QFont("Segoe UI", 12))
+        self.translated_text.setPlaceholderText("ผลการแปลจะแสดงที่นี่...")
+        self.translated_text.setStyleSheet("""
+            QTextEdit {
+                border: 2px solid #dee2e6;
+                border-radius: 6px;
+                padding: 10px;
+                background-color: #ffffff;
+                color: #212529;
+            }
+            QTextEdit:focus {
+                border: 2px solid #007bff;
+            }
+        """)
+        result_layout.addWidget(self.translated_text)
+        main_tab_layout.addWidget(result_group, 1)
+        
+        # Control buttons
+        control_layout = QHBoxLayout()
+        
+        self.start_button = QPushButton("▶️ เริ่ม")
+        self.start_button.clicked.connect(self.start_capture)
+        self.start_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+        
+        self.stop_button = QPushButton("⏸️ หยุด")
+        self.stop_button.clicked.connect(self.stop_capture)
+        self.stop_button.setEnabled(False)
+        self.stop_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+        """)
+        
+        # Toggle visibility button
         self.toggle_button = QPushButton("👁️ ซ่อน/แสดง")
         self.toggle_button.clicked.connect(self.toggle_selection_visibility)
-        self.toggle_button.setToolTip("ซ่อน/แสดงกรอบเลือกพื้นที่ (Ctrl+V)")
         self.toggle_button.setStyleSheet("""
-            QPushButton { 
-                background-color: #ffffff; 
-                color: #323130; 
-                padding: 8px 16px; 
-                font-size: 11px;
-                font-weight: normal; 
-                border: 1px solid #8a8886;
-                border-radius: 3px;
-                min-width: 100px;
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                padding: 10px 20px;
+                font-size: 12px;
+                border: none;
+                border-radius: 4px;
             }
-            QPushButton:hover { 
-                background-color: #f3f2f1; 
-                border: 1px solid #323130;
-            }
-            QPushButton:pressed {
-                background-color: #edebe9;
+            QPushButton:hover {
+                background-color: #5a6268;
             }
         """)
         
         control_layout.addWidget(self.start_button)
         control_layout.addWidget(self.stop_button)
         control_layout.addWidget(self.toggle_button)
-        bottom_layout.addWidget(control_group)
+        control_layout.addStretch()
+        main_tab_layout.addLayout(control_layout)
         
-        # Column 2: การตั้งค่าระยะเวลา
+        tab_widget.addTab(main_tab, "หลัก")
+        
+        # Settings tab
+        settings_tab = QWidget()
+        settings_layout = QVBoxLayout(settings_tab)
+        
+        # Scroll area for settings
+        scroll_area = QScrollArea()
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        
+        # Interval settings
         interval_group = QGroupBox("⏱️ การตั้งค่าระยะเวลา")
         interval_layout = QVBoxLayout(interval_group)
         
         interval_label = QLabel("ระยะเวลาจับภาพ (วินาที):")
-        interval_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
         
         self.interval_slider = QSlider(Qt.Horizontal)
-        self.interval_slider.setMinimum(UI_CONFIG.get('capture_interval_min', 500) // 1000)  
-        self.interval_slider.setMaximum(UI_CONFIG.get('capture_interval_max', 10000) // 1000)  
-        self.interval_slider.setValue(self.capture_interval // 1000)  
+        self.interval_slider.setMinimum(UI_CONFIG.get('capture_interval_min', 2000) // 1000)
+        self.interval_slider.setMaximum(UI_CONFIG.get('capture_interval_max', 15000) // 1000)
+        self.interval_slider.setValue(self.capture_interval // 1000)
         self.interval_slider.valueChanged.connect(self.on_interval_changed)
-        self.interval_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: 1px solid #d2d0ce;
-                height: 6px;
-                background: #f3f2f1;
-                border-radius: 3px;
-            }
-            QSlider::handle:horizontal {
-                background: #0078d4;
-                border: 1px solid #005a9e;
-                width: 18px;
-                margin: -7px 0;
-                border-radius: 9px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #106ebe;
-            }
-        """)
         
         self.interval_value_label = QLabel(f"{self.capture_interval // 1000}s")
-        self.interval_value_label.setMinimumWidth(40)
-        self.interval_value_label.setStyleSheet("QLabel { font-weight: bold; color: #0078d4; font-size: 11px; }")
+        self.interval_value_label.setStyleSheet("QLabel { font-weight: bold; color: #007bff; }")
         
         interval_layout.addWidget(interval_label)
         interval_layout.addWidget(self.interval_slider)
         interval_layout.addWidget(self.interval_value_label)
-        bottom_layout.addWidget(interval_group)
         
-        # Column 3: สถานะ
-        status_group = QGroupBox("📊 สถานะ")
-        status_layout = QVBoxLayout(status_group)
+        scroll_layout.addWidget(interval_group)
         
-        self.position_label = QLabel("ตำแหน่ง: X=100, Y=100, กว้าง=300, สูง=200")
-        self.position_label.setStyleSheet("QLabel { font-size: 10px; color: #605e5c; }")
-        
-        self.status_label = QLabel("สถานะ: พร้อมใช้งาน")
-        self.status_label.setStyleSheet("QLabel { color: #107c10; font-size: 10px; font-weight: bold; }")
-        
-        # Help text
-        self.help_label = QLabel("💡 วิธีการใช้: คลิกและลากบริเวณกรอบเพื่อย้าย | เลื่อนเมาส์เพื่อดูไฮไลท์")
-        self.help_label.setStyleSheet("QLabel { font-size: 9px; color: #8a8886; font-style: italic; }")
-        self.help_label.setWordWrap(True)
-        
-        status_layout.addWidget(self.position_label)
-        status_layout.addWidget(self.status_label)
-        status_layout.addWidget(self.help_label)
-        bottom_layout.addWidget(status_group)
-        
-        # Column 4: การตั้งค่า Ollama Models
-        ollama_group = QGroupBox("🤖 การตั้งค่า Ollama")
+        # Ollama settings (simplified)
+        ollama_group = QGroupBox("🤖 การตั้งค่า AI")
         ollama_layout = QVBoxLayout(ollama_group)
         
-        # Vision Model Selection
         vision_label = QLabel("AI Vision Model:")
-        vision_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
-        
         self.vision_model_combo = QComboBox()
-        self.vision_model_combo.setStyleSheet("""
-            QComboBox {
-                border: 1px solid #8a8886;
-                border-radius: 3px;
-                padding: 4px;
-                background-color: #ffffff;
-                color: #323130;
-                font-size: 10px;
-            }
-            QComboBox:drop-down {
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 20px;
-                border-left: 1px solid #8a8886;
-            }
-            QComboBox::down-arrow {
-                image: none;
-                border: 2px solid #323130;
-                width: 6px;
-                height: 6px;
-                border-top: none;
-                border-right: none;
-                border-bottom-right-radius: 1px;
-            }
-        """)
         self.vision_model_combo.currentTextChanged.connect(self.on_vision_model_changed)
         
-        # Translation Model Selection
         translation_label = QLabel("Translation Model:")
-        translation_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
-        
         self.translation_model_combo = QComboBox()
-        self.translation_model_combo.setStyleSheet(self.vision_model_combo.styleSheet())
         self.translation_model_combo.currentTextChanged.connect(self.on_translation_model_changed)
-        
-        # Custom Prompt
-        prompt_label = QLabel("Custom Prompt:")
-        prompt_label.setStyleSheet("QLabel { color: #323130; font-size: 11px; }")
-        
-        self.prompt_text = QTextEdit()
-        self.prompt_text.setMaximumHeight(80)
-        self.prompt_text.setPlaceholderText("ใส่ custom prompt หรือเว้นว่างเพื่อใช้ default...")
-        self.prompt_text.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #8a8886;
-                border-radius: 3px;
-                padding: 4px;
-                background-color: #ffffff;
-                color: #323130;
-                font-size: 10px;
-            }
-        """)
-        self.prompt_text.textChanged.connect(self.on_custom_prompt_changed)
-        
-        # Reset Prompt Button
-        self.reset_prompt_btn = QPushButton("🔄 รีเซ็ต")
-        self.reset_prompt_btn.clicked.connect(self.reset_custom_prompt)
-        self.reset_prompt_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f3f2f1;
-                color: #323130;
-                padding: 4px 8px;
-                font-size: 10px;
-                border: 1px solid #8a8886;
-                border-radius: 3px;
-                max-width: 60px;
-            }
-            QPushButton:hover {
-                background-color: #e1dfdd;
-            }
-        """)
         
         ollama_layout.addWidget(vision_label)
         ollama_layout.addWidget(self.vision_model_combo)
         ollama_layout.addWidget(translation_label)
         ollama_layout.addWidget(self.translation_model_combo)
-        ollama_layout.addWidget(prompt_label)
-        ollama_layout.addWidget(self.prompt_text)
-        ollama_layout.addWidget(self.reset_prompt_btn)
-        bottom_layout.addWidget(ollama_group)
         
-        # เพิ่ม layout 4 column ลงใน main layout
-        main_layout.addLayout(bottom_layout)
+        scroll_layout.addWidget(ollama_group)
         
-        # โหลด Ollama models เมื่อเริ่มต้น
+        # Custom prompt (collapsible)
+        prompt_group = QGroupBox("📝 Custom Prompt (ขั้นสูง)")
+        prompt_layout = QVBoxLayout(prompt_group)
+        
+        self.prompt_text = QTextEdit()
+        self.prompt_text.setMaximumHeight(100)
+        self.prompt_text.setPlaceholderText("ใส่ custom prompt หรือเว้นว่างเพื่อใช้ default...")
+        self.prompt_text.textChanged.connect(self.on_custom_prompt_changed)
+        
+        self.reset_prompt_btn = QPushButton("🔄 รีเซ็ต")
+        self.reset_prompt_btn.clicked.connect(self.reset_custom_prompt)
+        
+        prompt_layout.addWidget(self.prompt_text)
+        prompt_layout.addWidget(self.reset_prompt_btn)
+        
+        scroll_layout.addWidget(prompt_group)
+        scroll_layout.addStretch()
+        
+        scroll_area.setWidget(scroll_widget)
+        scroll_area.setWidgetResizable(True)
+        settings_layout.addWidget(scroll_area)
+        
+        tab_widget.addTab(settings_tab, "การตั้งค่า")
+        
+        # Status tab
+        status_tab = QWidget()
+        status_layout = QVBoxLayout(status_tab)
+        
+        self.position_label = QLabel("ตำแหน่ง: X=100, Y=100, กว้าง=300, สูง=200")
+        self.status_label = QLabel("สถานะ: พร้อมใช้งาน")
+        
+        help_label = QLabel("💡 วิธีการใช้: คลิกและลากบริเวณกรอบเพื่อย้าย | เลื่อนเมาส์เพื่อดูไฮไลท์")
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("QLabel { color: #6c757d; font-style: italic; }")
+        
+        status_layout.addWidget(self.position_label)
+        status_layout.addWidget(self.status_label)
+        status_layout.addWidget(help_label)
+        status_layout.addStretch()
+        
+        tab_widget.addTab(status_tab, "สถานะ")
+        
+        main_layout.addWidget(tab_widget, 1)
+        
+        # Load Ollama models
         self.load_ollama_models()
+    
+    def show_selection_area(self):
+        """แสดงกรอบเลือกพื้นที่"""
+        self.selection_widget.show()
+        self.selection_widget.set_visible_mode(True)
+        self.selection_widget.set_simple_mode(self.simple_mode)
+        self.selection_widget.set_help_text_visible(self.simple_mode)
+        if self.simple_mode:
+            self.status_label.setText("📍 สถานะ: ลากกรอบสีแดงไปยังข้อความที่ต้องการแปล")
+    
+    def toggle_mode(self):
+        """สลับระหว่างโหมดง่ายและขั้นสูง"""
+        self.simple_mode = not self.simple_mode
+        
+        # Update selection widget mode
+        self.selection_widget.set_simple_mode(self.simple_mode)
+        self.selection_widget.set_help_text_visible(self.simple_mode)
+        
+        # Clear and rebuild UI
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        
+        if self.simple_mode:
+            self.setup_simple_ui(main_layout)
+        else:
+            self.setup_advanced_ui(main_layout)
         
     def on_selection_changed(self, x, y, width, height):
         """เมื่อพื้นที่ที่เลือกเปลี่ยน"""
         self.current_selection = QRect(x, y, width, height)
-        self.position_label.setText(f"ตำแหน่ง: X={x}, Y={y}, กว้าง={width}, สูง={height}")
+        
+        if self.simple_mode:
+            self.position_label.setText(f"📐 ตำแหน่งการเลือก: X={x}, Y={y}, ขนาด={width}x{height}")
+            self.status_label.setText("📍 สถานะ: เลือกพื้นที่เรียบร้อย - กด 'เริ่มแปล' เพื่อเริ่มต้น")
+        else:
+            self.position_label.setText(f"ตำแหน่ง: X={x}, Y={y}, กว้าง={width}, สูง={height}")
     
     def on_interval_changed(self, value):
         """เมื่อระยะเวลาการจับภาพเปลี่ยน"""
@@ -428,7 +669,10 @@ class Window(QMainWindow):
         # เริ่ม timer สำหรับจับภาพด้วยระยะเวลาที่กำหนด
         self.capture_timer.start(self.capture_interval)
         
-        self.status_label.setText(f"สถานะ: เริ่มการจับภาพ (ทุก {self.capture_interval//1000} วินาที)")
+        if self.simple_mode:
+            self.status_label.setText(f"🚀 สถานะ: เริ่มแปลแล้ว! (ตรวจสอบทุก {self.capture_interval//1000} วินาที)")
+        else:
+            self.status_label.setText(f"สถานะ: เริ่มการจับภาพ (ทุก {self.capture_interval//1000} วินาที)")
         
     def stop_capture(self):
         """หยุดการจับภาพ"""
@@ -439,7 +683,10 @@ class Window(QMainWindow):
         # หยุด timer
         self.capture_timer.stop()
         
-        self.status_label.setText("สถานะ: หยุดการจับภาพ")
+        if self.simple_mode:
+            self.status_label.setText("⏸️ สถานะ: หยุดการแปลแล้ว - กด 'เริ่มแปล' เพื่อเริ่มใหม่")
+        else:
+            self.status_label.setText("สถานะ: หยุดการจับภาพ")
         
     def capture_and_process(self):
         """จับภาพหน้าจอและประมวลผล OCR"""
@@ -449,7 +696,10 @@ class Window(QMainWindow):
                 print("⚠️ OCR ยังทำงานอยู่ ข้าม capture ครั้งนี้")
                 return
                 
-            self.status_label.setText("สถานะ: กำลังจับภาพ...")
+            if self.simple_mode:
+                self.status_label.setText("📸 สถานะ: กำลังจับภาพ...")
+            else:
+                self.status_label.setText("สถานะ: กำลังจับภาพ...")
             
             # จับภาพพื้นที่ที่เลือก
             region = (
@@ -473,21 +723,33 @@ class Window(QMainWindow):
                 self.ocr_worker.error.connect(self.on_ocr_error)
                 
                 # เริ่มประมวลผล OCR ใน background
-                self.status_label.setText("สถานะ: กำลังอ่านข้อความ...")
+                if self.simple_mode:
+                    self.status_label.setText("🔍 สถานะ: กำลังอ่านข้อความ...")
+                else:
+                    self.status_label.setText("สถานะ: กำลังอ่านข้อความ...")
                 self.ocr_worker.start()
             else:
-                self.status_label.setText("สถานะ: ไม่สามารถจับภาพได้")
+                if self.simple_mode:
+                    self.status_label.setText("❌ สถานะ: ไม่สามารถจับภาพได้ - ลองเลือกพื้นที่ใหม่")
+                else:
+                    self.status_label.setText("สถานะ: ไม่สามารถจับภาพได้")
                 
         except Exception as e:
             self.translated_text.clear()
             self.translated_text.append(f"❌ เกิดข้อผิดพลาด: {str(e)}")
-            self.status_label.setText("สถานะ: เกิดข้อผิดพลาด")
+            if self.simple_mode:
+                self.status_label.setText("❌ สถานะ: เกิดข้อผิดพลาด - ลองใหม่อีกครั้ง")
+            else:
+                self.status_label.setText("สถานะ: เกิดข้อผิดพลาด")
     
     @pyqtSlot(str, float)
     def on_ocr_finished(self, text, confidence):
         """เมื่อ OCR เสร็จสิ้น"""
         try:
-            self.status_label.setText("สถานะ: กำลังประมวลผล...")
+            if self.simple_mode:
+                self.status_label.setText("⚡ สถานะ: กำลังแปลข้อความ...")
+            else:
+                self.status_label.setText("สถานะ: กำลังประมวลผล...")
             
             # แสดงข้อความ
             if text.strip():
@@ -499,7 +761,10 @@ class Window(QMainWindow):
                     
                     self.last_detected_text = text
             
-            self.status_label.setText("สถานะ: พร้อมใช้งาน")
+            if self.simple_mode:
+                self.status_label.setText("✅ สถานะ: พร้อมใช้งาน - กำลังตรวจหาข้อความ...")
+            else:
+                self.status_label.setText("สถานะ: พร้อมใช้งาน")
             
         except Exception as e:
             self.on_ocr_error(str(e))
@@ -509,18 +774,28 @@ class Window(QMainWindow):
         """เมื่อ OCR เกิดข้อผิดพลาด"""
         self.translated_text.clear()
         self.translated_text.append(f"❌ เกิดข้อผิดพลาด OCR: {error_message}")
-        self.status_label.setText("สถานะ: เกิดข้อผิดพลาด OCR")
+        if self.simple_mode:
+            self.status_label.setText("❌ สถานะ: ไม่สามารถอ่านข้อความได้ - ลองปรับตำแหน่งกรอบ")
+        else:
+            self.status_label.setText("สถานะ: เกิดข้อผิดพลาด OCR")
     
     def translate_text(self, text):
         """แปลข้อความ"""
         try:
-            self.status_label.setText("สถานะ: กำลังแปล...")
+            if self.simple_mode:
+                self.status_label.setText("🔄 สถานะ: กำลังแปลข้อความ...")
+            else:
+                self.status_label.setText("สถานะ: กำลังแปล...")
             
             # ตรวจสอบว่า translator พร้อมใช้งานหรือไม่
             if not self.translator.is_available():
                 self.translated_text.clear()
-                self.translated_text.append("❌ ระบบแปลภาษาไม่พร้อมใช้งาน")
-                self.status_label.setText("สถานะ: ระบบแปลไม่พร้อมใช้งาน")
+                if self.simple_mode:
+                    self.translated_text.append("❌ ระบบแปลภาษาไม่พร้อมใช้งาน\n\n💡 กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต")
+                    self.status_label.setText("❌ สถานะ: ระบบแปลไม่พร้อมใช้งาน")
+                else:
+                    self.translated_text.append("❌ ระบบแปลภาษาไม่พร้อมใช้งาน")
+                    self.status_label.setText("สถานะ: ระบบแปลไม่พร้อมใช้งาน")
                 return
             
             # แปลข้อความ
@@ -530,24 +805,40 @@ class Window(QMainWindow):
                 # Auto clean old content when new text arrives
                 self.translated_text.clear()
                 
-                # แสดงเฉพาะคำแปล
-                self.translated_text.append(f"{result['translated_text']}")
+                if self.simple_mode:
+                    # แสดงข้อความต้นฉบับและคำแปลในโหมดง่าย
+                    self.translated_text.append(f"📝 ข้อความต้นฉบับ:\n{text}\n")
+                    self.translated_text.append(f"🔄 คำแปล:\n{result['translated_text']}")
+                else:
+                    # แสดงเฉพาะคำแปลในโหมดขั้นสูง
+                    self.translated_text.append(f"{result['translated_text']}")
                 
                 # เลื่อนไปที่ข้อความล่าสุด
                 self.translated_text.verticalScrollBar().setValue(
                     self.translated_text.verticalScrollBar().maximum()
                 )
                 
-                self.status_label.setText("สถานะ: แปลสำเร็จ")
+                if self.simple_mode:
+                    self.status_label.setText("✅ สถานะ: แปลสำเร็จ! กำลังตรวจหาข้อความใหม่...")
+                else:
+                    self.status_label.setText("สถานะ: แปลสำเร็จ")
             else:
                 self.translated_text.clear()
-                self.translated_text.append("❌ ไม่สามารถแปลข้อความได้")
-                self.status_label.setText("สถานะ: แปลไม่สำเร็จ")
+                if self.simple_mode:
+                    self.translated_text.append("❌ ไม่สามารถแปลข้อความได้\n\n💡 ลองปรับตำแหน่งกรอบให้ครอบคลุมข้อความที่ชัดเจนขึ้น")
+                    self.status_label.setText("❌ สถานะ: ไม่สามารถแปลได้ - ลองใหม่")
+                else:
+                    self.translated_text.append("❌ ไม่สามารถแปลข้อความได้")
+                    self.status_label.setText("สถานะ: แปลไม่สำเร็จ")
                 
         except Exception as e:
             self.translated_text.clear()
-            self.translated_text.append(f"❌ เกิดข้อผิดพลาดในการแปล: {str(e)}")
-            self.status_label.setText("สถานะ: เกิดข้อผิดพลาดในการแปล")
+            if self.simple_mode:
+                self.translated_text.append(f"❌ เกิดข้อผิดพลาดในการแปล\n\n🔧 รายละเอียด: {str(e)}\n\n💡 ลองรีสตาร์ทแอปพลิเคชัน")
+                self.status_label.setText("❌ สถานะ: เกิดข้อผิดพลาด - ลองใหม่")
+            else:
+                self.translated_text.append(f"❌ เกิดข้อผิดพลาดในการแปล: {str(e)}")
+                self.status_label.setText("สถานะ: เกิดข้อผิดพลาดในการแปล")
     
     def toggle_selection_visibility(self):
         """สลับการแสดงผลของ selection widget"""

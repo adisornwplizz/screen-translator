@@ -49,6 +49,3 @@ setup(
         "Documentation": "https://github.com/yourusername/screen-translator/wiki",
     },
 )
-        ],
-    },
-)

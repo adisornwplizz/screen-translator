@@ -54,6 +54,11 @@ class SelectionWidget(QWidget):
         self.movement_highlight_alpha = 30
         self.smooth_movement = True
         
+        # ✨ Simple mode features for better usability
+        self.simple_mode = True  # Start in simple mode by default
+        self.show_help_text = True
+        self.first_interaction = True
+        
         # แสดงตลอดเวลา
         self.show()
         
@@ -100,8 +105,13 @@ class SelectionWidget(QWidget):
             pen_color = QColor(0, 120, 255, 200)  # Blue when hovering
             pen_width = 2
         else:
-            pen_color = QColor(255, 0, 0, 180)  # Red default
-            pen_width = 2
+            # Different colors for simple vs advanced mode
+            if self.simple_mode:
+                pen_color = QColor(255, 100, 100, 200)  # Softer red for simple mode
+                pen_width = 3
+            else:
+                pen_color = QColor(255, 0, 0, 180)  # Red default
+                pen_width = 2
             
         pen = QPen(pen_color, pen_width)
         painter.setPen(pen)
@@ -110,11 +120,16 @@ class SelectionWidget(QWidget):
         # ✨ Draw move icon (NEW)
         self.draw_move_icon(painter)
         
-        # วาดจุดสำหรับปรับขนาด (handles)
-        self.draw_resize_handles(painter)
+        # วาดจุดสำหรับปรับขนาด (handles) - Hide in simple mode if first interaction
+        if not (self.simple_mode and self.first_interaction):
+            self.draw_resize_handles(painter)
         
         # ✨ Enhanced size info with movement status (IMPROVED)
         self.draw_enhanced_size_info(painter)
+        
+        # ✨ Draw simple mode guidance
+        if self.simple_mode and self.show_help_text:
+            self.draw_simple_mode_guidance(painter)
     
     def draw_move_icon(self, painter):
         """Draws a small cross icon at the top-left of the selection box."""
@@ -210,6 +225,60 @@ class SelectionWidget(QWidget):
             painter.setPen(QPen(status_color))
             painter.drawText(status_pos, status_text)
     
+    def draw_simple_mode_guidance(self, painter):
+        """✨ วาดคำแนะนำสำหรับโหมดใช้งานง่าย"""
+        if not self.simple_mode or not self.show_help_text:
+            return
+            
+        # Set font for guidance text
+        font = QFont("Segoe UI", 12, QFont.Bold)
+        painter.setFont(font)
+        
+        # Different guidance based on state
+        if self.first_interaction:
+            guidance_text = "🎯 ลากกรอบนี้ไปยังข้อความที่ต้องการแปล"
+            text_color = QColor(255, 255, 100, 255)  # Bright yellow
+            bg_color = QColor(50, 50, 50, 200)
+        elif self.dragging:
+            guidance_text = "✅ ปล่อยเมาส์เพื่อวางตำแหน่ง"
+            text_color = QColor(100, 255, 100, 255)  # Bright green
+            bg_color = QColor(0, 50, 0, 200)
+        elif self.is_hovering_move_area:
+            guidance_text = "👆 คลิกและลากเพื่อย้าย"
+            text_color = QColor(100, 200, 255, 255)  # Bright blue
+            bg_color = QColor(0, 30, 80, 200)
+        else:
+            guidance_text = "💡 กด ESC เพื่อปิด | ลากเพื่อย้าย"
+            text_color = QColor(200, 200, 200, 255)  # Light gray
+            bg_color = QColor(50, 50, 50, 180)
+        
+        # Calculate position (above the selection box)
+        rect = self.selection_rect
+        guidance_pos = QPoint(rect.center().x(), rect.top() - 50)
+        
+        # Adjust if too close to screen edge
+        if guidance_pos.y() < 60:
+            guidance_pos.setY(rect.bottom() + 50)
+        
+        # Measure text to center it
+        text_rect = painter.fontMetrics().boundingRect(guidance_text)
+        guidance_pos.setX(guidance_pos.x() - text_rect.width() // 2)
+        
+        # Draw background
+        bg_rect = QRect(text_rect)
+        bg_rect.moveTopLeft(guidance_pos)
+        bg_rect.adjust(-12, -8, 12, 8)
+        
+        painter.fillRect(bg_rect, bg_color)
+        
+        # Draw border
+        painter.setPen(QPen(text_color, 2))
+        painter.drawRect(bg_rect)
+        
+        # Draw text
+        painter.setPen(QPen(text_color))
+        painter.drawText(guidance_pos, guidance_text)
+    
     def mousePressEvent(self, event):
         """✨ Enhanced mouse press with better feedback (IMPROVED)"""
         if event.button() == Qt.LeftButton:
@@ -219,6 +288,11 @@ class SelectionWidget(QWidget):
             if not self.should_handle_mouse_event(pos):
                 event.ignore()
                 return
+            
+            # ✨ Mark first interaction for simple mode guidance
+            if self.simple_mode and self.first_interaction:
+                self.first_interaction = False
+                self.update()
             
             # ตรวจสอบว่าเป็นการปรับขนาดหรือไม่
             resize_direction = self.get_resize_direction(pos)
@@ -421,6 +495,20 @@ class SelectionWidget(QWidget):
             self.hide()
         elif event.key() == Qt.Key_V:  # V key สำหรับ toggle visibility
             self.toggle_visibility()
+        elif event.key() == Qt.Key_H:  # H key สำหรับ toggle help text
+            if self.simple_mode:
+                self.show_help_text = not self.show_help_text
+                self.update()
+    
+    def set_simple_mode(self, simple_mode):
+        """ตั้งค่าโหมดใช้งานง่าย"""
+        self.simple_mode = simple_mode
+        self.update()
+    
+    def set_help_text_visible(self, visible):
+        """ตั้งค่าการแสดงข้อความช่วยเหลือ"""
+        self.show_help_text = visible
+        self.update()
     
     def toggle_visibility(self):
         """สลับการแสดงผล โดยที่ยังคงทำงานอยู่"""
