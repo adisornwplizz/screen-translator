@@ -613,12 +613,18 @@ class Window(QMainWindow):
         """แสดงกรอบเลือกพื้นที่"""
         self.selection_widget.show()
         self.selection_widget.set_visible_mode(True)
+        self.selection_widget.set_simple_mode(self.simple_mode)
+        self.selection_widget.set_help_text_visible(self.simple_mode)
         if self.simple_mode:
             self.status_label.setText("📍 สถานะ: ลากกรอบสีแดงไปยังข้อความที่ต้องการแปล")
     
     def toggle_mode(self):
         """สลับระหว่างโหมดง่ายและขั้นสูง"""
         self.simple_mode = not self.simple_mode
+        
+        # Update selection widget mode
+        self.selection_widget.set_simple_mode(self.simple_mode)
+        self.selection_widget.set_help_text_visible(self.simple_mode)
         
         # Clear and rebuild UI
         central_widget = QWidget()
